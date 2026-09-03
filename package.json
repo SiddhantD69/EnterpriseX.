@@ -1,0 +1,8 @@
+{
+  "name": "enterprisex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EnterpriseX ERP platform",
+  "license": "UNLICENSED",
+  "packageManager": "npm@11.9.0"
+}

@@ -10,6 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^26.4.1",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "fastify": "^5.12.1"
   }
 }

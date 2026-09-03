@@ -4,5 +4,9 @@
   "private": true,
   "description": "EnterpriseX ERP platform",
   "license": "UNLICENSED",
-  "packageManager": "npm@11.9.0"
+  "packageManager": "npm@11.9.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }

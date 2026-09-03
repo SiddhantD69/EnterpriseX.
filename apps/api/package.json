@@ -1,0 +1,15 @@
+{
+  "name": "@enterprisex/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EnterpriseX backend API",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch dist/index.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

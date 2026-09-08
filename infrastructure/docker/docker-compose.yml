@@ -1,0 +1,20 @@
+name: enterprisex
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: enterprisex-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: enterprisex
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: enterprisex
+    ports:
+      - "5432:5432"
+    volumes:
+      - enterprisex-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  enterprisex-postgres-data:
+    external: true
+    name: f68653dca8b5f00c358727ecb15481a46b6816f26900cf39b4038b54accf4e0f

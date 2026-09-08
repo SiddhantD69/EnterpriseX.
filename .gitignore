@@ -20,3 +20,4 @@ Thumbs.db
 target/
 
 src-tauri/target/
+database/*.sql

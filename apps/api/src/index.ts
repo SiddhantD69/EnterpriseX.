@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import { env } from "./config/env.js";
 import { db } from "./infrastructure/database/pool.js";
+import { registerCoreContextRoute } from "./modules/core-platform/api/core-context-route.js";
 
 const app = Fastify({
   logger: true,
@@ -22,6 +23,8 @@ app.get("/health/db", async () => {
     database: result.rows[0].connected === 1,
   };
 });
+
+registerCoreContextRoute(app);
 
 const start = async (): Promise<void> => {
   try {

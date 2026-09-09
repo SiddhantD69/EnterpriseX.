@@ -8,6 +8,7 @@
     "dev": "node --watch dist/index.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "test": "node --test dist/**/*.test.js",
     "db:migrate": "node dist/infrastructure/database/migrate.js"
   },
   "devDependencies": {
@@ -16,6 +17,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@fastify/cors": "^11.0.2",
     "fastify": "^5.12.1",
     "pg": "^8.23.0"
   }

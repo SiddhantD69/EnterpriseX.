@@ -58,6 +58,7 @@ export const createAuthenticatedSession = async (
 
 export const validateSession = async (
   token: string,
+  now: Date = new Date(),
 ): Promise<Session | null> => {
   if (!token) {
     return null;
@@ -71,10 +72,10 @@ export const validateSession = async (
     return null;
   }
 
-  if (!isSessionActive(session)) {
+  if (!isSessionActive(session, now)) {
     if (
       session.status === "ACTIVE" &&
-      session.expiresAt.getTime() <= Date.now()
+      session.expiresAt.getTime() <= now.getTime()
     ) {
       await markSessionExpired(session.id);
     }
@@ -82,7 +83,7 @@ export const validateSession = async (
     return null;
   }
 
-  await touchSession(session.id);
+  await touchSession(session.id, now);
 
   return session;
 };

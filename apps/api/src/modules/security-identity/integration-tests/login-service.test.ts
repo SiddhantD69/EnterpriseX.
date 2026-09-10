@@ -40,6 +40,14 @@ describe("Login Service", () => {
 
       await db.query(
         `
+          DELETE FROM core.audit_events
+          WHERE actor_user_id = $1
+        `,
+        [testUserId],
+      );
+
+      await db.query(
+        `
           DELETE FROM security.sessions
           WHERE user_id = $1
         `,
@@ -89,6 +97,22 @@ describe("Login Service", () => {
   });
 
   after(async () => {
+    /*
+     * Audit events reference security.users through
+     * audit_events_actor_user_fk.
+     *
+     * Therefore audit events must be removed before
+     * deleting the test user.
+     */
+
+    await db.query(
+      `
+        DELETE FROM core.audit_events
+        WHERE actor_user_id = $1
+      `,
+      [testUserId],
+    );
+
     await db.query(
       `
         DELETE FROM security.sessions

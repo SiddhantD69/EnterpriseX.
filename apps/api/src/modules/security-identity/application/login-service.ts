@@ -16,6 +16,12 @@ import {
   hashPassword,
   verifyPassword,
 } from "../security/password-hasher.js";
+import {
+  recordAccountLocked,
+  recordLoginFailure,
+  recordLoginSuccess,
+  recordSessionCreated,
+} from "./security-audit-service.js";
 
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
@@ -51,7 +57,7 @@ const registerFailedLogin = async (
   userId: string,
   failedAttempts: number,
   now: Date,
-): Promise<void> => {
+): Promise<boolean> => {
   const nextAttempts = failedAttempts + 1;
 
   await recordFailedLoginAttempt(userId);
@@ -66,6 +72,26 @@ const registerFailedLogin = async (
       userId,
       lockedUntil,
     );
+
+    return true;
+  }
+
+  return false;
+};
+
+const safeRecordAudit = async (
+  operation: () => Promise<void>,
+): Promise<void> => {
+  try {
+    await operation();
+  } catch {
+    /*
+     * Authentication must not expose audit infrastructure
+     * failures to the caller.
+     *
+     * The audit infrastructure itself is responsible for
+     * observability of failed audit writes.
+     */
   }
 };
 
@@ -76,7 +102,16 @@ export const authenticateUser = async (
   const email = normalizeEmail(input.email);
 
   if (!email || !input.password) {
-    throw new Error(INVALID_CREDENTIALS_MESSAGE);
+    await safeRecordAudit(() =>
+      recordLoginFailure({
+        userId: null,
+        reason: "invalid_credentials",
+      }),
+    );
+
+    throw new Error(
+      INVALID_CREDENTIALS_MESSAGE,
+    );
   }
 
   const user = await findUserByEmail(email);
@@ -84,9 +119,8 @@ export const authenticateUser = async (
   /*
    * Do not reveal whether the user exists.
    *
-   * If no user exists, perform the same password-hash
-   * operation against a generated dummy hash so that the
-   * response path is not trivially distinguishable.
+   * Perform password verification against a dummy
+   * Argon2id hash when the account does not exist.
    */
   if (!user) {
     const dummyHash = await hashPassword(
@@ -98,18 +132,48 @@ export const authenticateUser = async (
       dummyHash,
     );
 
-    throw new Error(INVALID_CREDENTIALS_MESSAGE);
+    await safeRecordAudit(() =>
+      recordLoginFailure({
+        userId: null,
+        reason: "invalid_credentials",
+      }),
+    );
+
+    throw new Error(
+      INVALID_CREDENTIALS_MESSAGE,
+    );
   }
 
   if (user.status !== "ACTIVE") {
-    throw new Error(INVALID_CREDENTIALS_MESSAGE);
+    await safeRecordAudit(() =>
+      recordLoginFailure({
+        userId: user.id,
+        reason: "invalid_credentials",
+      }),
+    );
+
+    throw new Error(
+      INVALID_CREDENTIALS_MESSAGE,
+    );
   }
 
   const credentials =
     await findCredentialsByUserId(user.id);
 
-  if (!credentials || !credentials.passwordHash) {
-    throw new Error(INVALID_CREDENTIALS_MESSAGE);
+  if (
+    !credentials ||
+    !credentials.passwordHash
+  ) {
+    await safeRecordAudit(() =>
+      recordLoginFailure({
+        userId: user.id,
+        reason: "invalid_credentials",
+      }),
+    );
+
+    throw new Error(
+      INVALID_CREDENTIALS_MESSAGE,
+    );
   }
 
   if (
@@ -118,7 +182,16 @@ export const authenticateUser = async (
       now,
     )
   ) {
-    throw new Error(INVALID_CREDENTIALS_MESSAGE);
+    await safeRecordAudit(() =>
+      recordLoginFailure({
+        userId: user.id,
+        reason: "account_locked",
+      }),
+    );
+
+    throw new Error(
+      INVALID_CREDENTIALS_MESSAGE,
+    );
   }
 
   const passwordValid =
@@ -128,13 +201,31 @@ export const authenticateUser = async (
     );
 
   if (!passwordValid) {
-    await registerFailedLogin(
-      user.id,
-      credentials.failedLoginAttempts,
-      now,
+    const accountLocked =
+      await registerFailedLogin(
+        user.id,
+        credentials.failedLoginAttempts,
+        now,
+      );
+
+    await safeRecordAudit(() =>
+      recordLoginFailure({
+        userId: user.id,
+        reason: "invalid_credentials",
+      }),
     );
 
-    throw new Error(INVALID_CREDENTIALS_MESSAGE);
+    if (accountLocked) {
+      await safeRecordAudit(() =>
+        recordAccountLocked({
+          userId: user.id,
+        }),
+      );
+    }
+
+    throw new Error(
+      INVALID_CREDENTIALS_MESSAGE,
+    );
   }
 
   await resetLoginFailures(
@@ -148,6 +239,19 @@ export const authenticateUser = async (
       lifetimeMinutes:
         SESSION_LIFETIME_MINUTES,
     });
+
+  await safeRecordAudit(() =>
+    recordSessionCreated({
+      userId: user.id,
+      sessionId: session.session.id,
+    }),
+  );
+
+  await safeRecordAudit(() =>
+    recordLoginSuccess({
+      userId: user.id,
+    }),
+  );
 
   return {
     user,

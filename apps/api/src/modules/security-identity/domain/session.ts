@@ -6,6 +6,7 @@ export type SessionStatus =
 export type Session = {
   id: string;
   userId: string;
+  companyId: string | null;
   tokenHash: string;
   status: SessionStatus;
   createdAt: Date;
@@ -16,6 +17,7 @@ export type Session = {
 
 export type CreateSessionInput = {
   userId: string;
+  companyId?: string | null;
   tokenHash: string;
   expiresAt: Date;
 };
@@ -24,7 +26,10 @@ export const isSessionExpired = (
   session: Session,
   now: Date = new Date(),
 ): boolean => {
-  return session.expiresAt.getTime() <= now.getTime();
+  return (
+    session.expiresAt.getTime() <=
+    now.getTime()
+  );
 };
 
 export const isSessionActive = (

@@ -284,7 +284,8 @@ test("Core Context API", async (t) => {
         );
 
         /*
-         * Permission
+         * Permission required by the
+         * protected Core Context API route.
          */
         const permissionResult =
           await db.query<{ id: string }>(
@@ -300,8 +301,8 @@ test("Core Context API", async (t) => {
               RETURNING id
             `,
             [
-              `core.context.test.${suffix}`,
-              "Core Context Test Permission",
+              "core.organization.read",
+              "Read organization context",
             ],
           );
 
@@ -462,9 +463,9 @@ test("Core Context API", async (t) => {
               permissions: [
                 {
                   code:
-                    `core.context.test.${suffix}`,
+                    "core.organization.read",
                   name:
-                    "Core Context Test Permission",
+                    "Read organization context",
                 },
               ],
             },

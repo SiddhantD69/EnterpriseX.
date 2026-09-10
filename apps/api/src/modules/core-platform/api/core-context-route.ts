@@ -4,26 +4,27 @@ import {
   authenticationMiddleware,
 } from "../../security-identity/api/authentication-middleware.js";
 
+import {
+  requirePermission,
+} from "../../security-identity/api/authorization-middleware.js";
+
 export const registerCoreContextRoute = (
   app: FastifyInstance,
 ): void => {
   app.get(
     "/api/v1/core/context",
     {
-      preHandler:
+      preHandler: [
         authenticationMiddleware,
+        requirePermission(
+          "core.organization.read",
+        ),
+      ],
     },
     async (request, reply) => {
       const context =
         request.authenticatedContext;
 
-      /*
-       * The authentication middleware should always
-       * establish context before this handler runs.
-       *
-       * Keep this defensive check so the route never
-       * accidentally operates without trusted identity.
-       */
       if (!context) {
         return reply.code(401).send({
           error: {

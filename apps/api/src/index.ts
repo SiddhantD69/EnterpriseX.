@@ -1,30 +1,7 @@
-import Fastify from "fastify";
+import { buildApp } from "./app.js";
 import { env } from "./config/env.js";
-import { db } from "./infrastructure/database/pool.js";
-import { registerCoreContextRoute } from "./modules/core-platform/api/core-context-route.js";
 
-const app = Fastify({
-  logger: true,
-});
-
-app.get("/health", async () => {
-  return {
-    status: "ok",
-    service: "enterprisex-api",
-    environment: env.nodeEnv,
-  };
-});
-
-app.get("/health/db", async () => {
-  const result = await db.query("SELECT 1 AS connected");
-
-  return {
-    status: "ok",
-    database: result.rows[0].connected === 1,
-  };
-});
-
-registerCoreContextRoute(app);
+const app = buildApp();
 
 const start = async (): Promise<void> => {
   try {

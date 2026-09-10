@@ -1,72 +1,76 @@
 import type { FastifyInstance } from "fastify";
+
 import {
-  getPlatformContext,
-  type DevelopmentSession,
-} from "../application/get-platform-context.js";
+  authenticationMiddleware,
+} from "../../security-identity/api/authentication-middleware.js";
 
 export const registerCoreContextRoute = (
   app: FastifyInstance,
 ): void => {
-  app.get("/api/v1/core/context", async (_request, reply) => {
-    const developmentSession: DevelopmentSession = {
-      userId: await getDevelopmentUserId(),
-      companyId: await getDevelopmentCompanyId(),
-    };
+  app.get(
+    "/api/v1/core/context",
+    {
+      preHandler:
+        authenticationMiddleware,
+    },
+    async (request, reply) => {
+      const context =
+        request.authenticatedContext;
 
-    try {
-      const context = await getPlatformContext(developmentSession);
+      /*
+       * The authentication middleware should always
+       * establish context before this handler runs.
+       *
+       * Keep this defensive check so the route never
+       * accidentally operates without trusted identity.
+       */
+      if (!context) {
+        return reply.code(401).send({
+          error: {
+            code:
+              "AUTHENTICATION_REQUIRED",
+            message:
+              "Authentication required.",
+          },
+        });
+      }
 
-      return reply.send({
-        status: "ok",
-        data: context,
+      return reply.code(200).send({
+        user: {
+          id: context.user.userId,
+          email: context.user.email,
+          displayName:
+            context.user.displayName,
+        },
+
+        organization: {
+          id: context.organization.id,
+          code: context.organization.code,
+          name: context.organization.name,
+        },
+
+        company: {
+          id: context.company.id,
+          code: context.company.code,
+          name: context.company.name,
+        },
+
+        roles: context.roles.map(
+          (role) => ({
+            id: role.id,
+            code: role.code,
+            name: role.name,
+          }),
+        ),
+
+        permissions:
+          context.permissions.map(
+            (permission) => ({
+              code: permission.code,
+              name: permission.name,
+            }),
+          ),
       });
-    } catch (error) {
-      app.log.error(error);
-
-      return reply.code(500).send({
-        status: "error",
-        message: "Unable to load platform context.",
-      });
-    }
-  });
-};
-
-const getDevelopmentUserId = async (): Promise<string> => {
-  const { db } = await import("../../../infrastructure/database/pool.js");
-
-  const result = await db.query<{ id: string }>(
-    `
-      SELECT id
-      FROM security.users
-      WHERE email = $1
-        AND status = 'ACTIVE'
-    `,
-    ["developer@enterprisex.local"],
+    },
   );
-
-  if (result.rowCount !== 1) {
-    throw new Error("Development user not found.");
-  }
-
-  return result.rows[0].id;
-};
-
-const getDevelopmentCompanyId = async (): Promise<string> => {
-  const { db } = await import("../../../infrastructure/database/pool.js");
-
-  const result = await db.query<{ id: string }>(
-    `
-      SELECT id
-      FROM core.companies
-      WHERE code = $1
-        AND status = 'ACTIVE'
-    `,
-    ["ENTX-DEV-CO"],
-  );
-
-  if (result.rowCount !== 1) {
-    throw new Error("Development company not found.");
-  }
-
-  return result.rows[0].id;
 };

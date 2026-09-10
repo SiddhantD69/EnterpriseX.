@@ -1,34 +1,32 @@
 import { db } from "../../../infrastructure/database/pool.js";
 
 import type {
-  AuthenticatedCompanyContext,
   AuthenticatedContext,
-  AuthenticatedOrganizationContext,
   AuthenticatedPermissionContext,
   AuthenticatedRoleContext,
-  AuthenticatedUserContext,
 } from "../domain/authenticated-context.js";
 
 type AuthenticatedContextRow = {
   session_id: string;
+
   user_id: string;
   email: string;
   display_name: string;
+
   organization_id: string;
   organization_code: string;
   organization_name: string;
+
   company_id: string;
   company_code: string;
   company_name: string;
-  role_id: string;
-  role_code: string;
-  role_name: string;
-  permission_code: string;
-  permission_name: string;
-};
 
-type AuthenticatedContextQueryResult = {
-  rows: AuthenticatedContextRow[];
+  role_id: string | null;
+  role_code: string | null;
+  role_name: string | null;
+
+  permission_code: string | null;
+  permission_name: string | null;
 };
 
 export const findAuthenticatedContextBySessionId =
@@ -36,7 +34,7 @@ export const findAuthenticatedContextBySessionId =
     sessionId: string,
   ): Promise<AuthenticatedContext | null> => {
     const result =
-      (await db.query<AuthenticatedContextRow>(
+      await db.query<AuthenticatedContextRow>(
         `
           SELECT
             s.id AS session_id,
@@ -71,22 +69,26 @@ export const findAuthenticatedContextBySessionId =
 
           INNER JOIN core.companies c
             ON c.id = uca.company_id
+           AND c.organization_id = uca.organization_id
            AND c.status = 'ACTIVE'
 
           INNER JOIN core.organizations o
             ON o.id = c.organization_id
            AND o.status = 'ACTIVE'
 
-          INNER JOIN security.user_roles ur
+          LEFT JOIN security.user_roles ur
             ON ur.user_id = u.id
+           AND ur.company_id = c.id
+           AND ur.status = 'ACTIVE'
 
-          INNER JOIN security.roles r
+          LEFT JOIN security.roles r
             ON r.id = ur.role_id
+           AND r.status = 'ACTIVE'
 
-          INNER JOIN security.role_permissions rp
+          LEFT JOIN security.role_permissions rp
             ON rp.role_id = r.id
 
-          INNER JOIN security.permissions p
+          LEFT JOIN security.permissions p
             ON p.id = rp.permission_id
 
           WHERE s.id = $1
@@ -95,65 +97,98 @@ export const findAuthenticatedContextBySessionId =
             AND u.status = 'ACTIVE'
 
           ORDER BY
-            r.code,
-            p.code
+            r.code NULLS LAST,
+            p.code NULLS LAST
         `,
         [sessionId],
-      )) as AuthenticatedContextQueryResult;
+      );
 
     if (result.rows.length === 0) {
       return null;
     }
 
-    const firstRow = result.rows[0];
+    const firstRow =
+      result.rows[0];
 
-    const user: AuthenticatedUserContext = {
-      userId: firstRow.user_id,
-      email: firstRow.email,
-      displayName: firstRow.display_name,
-    };
+    const roles =
+      new Map<
+        string,
+        AuthenticatedRoleContext
+      >();
 
-    const organization: AuthenticatedOrganizationContext = {
-      id: firstRow.organization_id,
-      code: firstRow.organization_code,
-      name: firstRow.organization_name,
-    };
-
-    const company: AuthenticatedCompanyContext = {
-      id: firstRow.company_id,
-      code: firstRow.company_code,
-      name: firstRow.company_name,
-    };
-
-    const roles = new Map<
-      string,
-      AuthenticatedRoleContext
-    >();
-
-    const permissions = new Map<
-      string,
-      AuthenticatedPermissionContext
-    >();
+    const permissions =
+      new Map<
+        string,
+        AuthenticatedPermissionContext
+      >();
 
     for (const row of result.rows) {
-      roles.set(row.role_id, {
-        id: row.role_id,
-        code: row.role_code,
-        name: row.role_name,
-      });
+      if (
+        row.role_id &&
+        row.role_code &&
+        row.role_name
+      ) {
+        roles.set(
+          row.role_id,
+          {
+            id: row.role_id,
+            code: row.role_code,
+            name: row.role_name,
+          },
+        );
+      }
 
-      permissions.set(row.permission_code, {
-        code: row.permission_code,
-        name: row.permission_name,
-      });
+      if (
+        row.permission_code &&
+        row.permission_name
+      ) {
+        permissions.set(
+          row.permission_code,
+          {
+            code:
+              row.permission_code,
+            name:
+              row.permission_name,
+          },
+        );
+      }
     }
 
     return {
-      sessionId: firstRow.session_id,
-      user,
-      organization,
-      company,
-      roles: Array.from(roles.values()),
+      sessionId:
+        firstRow.session_id,
+
+      user: {
+        userId:
+          firstRow.user_id,
+        email:
+          firstRow.email,
+        displayName:
+          firstRow.display_name,
+      },
+
+      organization: {
+        id:
+          firstRow.organization_id,
+        code:
+          firstRow.organization_code,
+        name:
+          firstRow.organization_name,
+      },
+
+      company: {
+        id:
+          firstRow.company_id,
+        code:
+          firstRow.company_code,
+        name:
+          firstRow.company_name,
+      },
+
+      roles: Array.from(
+        roles.values(),
+      ),
+
       permissions: Array.from(
         permissions.values(),
       ),

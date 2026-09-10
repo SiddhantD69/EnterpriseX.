@@ -479,5 +479,411 @@ test("Core Context API", async (t) => {
     },
   );
 
+
+  await t.test(
+    "does not leak a role assigned to another company",
+    async () => {
+      const crossCompanySuffix =
+        randomUUID().slice(0, 8);
+
+      let crossUserId: string | null = null;
+      let crossOrganizationId: string | null = null;
+      let companyAId: string | null = null;
+      let companyBId: string | null = null;
+      let crossRoleId: string | null = null;
+      let crossPermissionId: string | null = null;
+      let crossSessionId: string | null = null;
+
+      const crossEmail =
+        `cross-company-${crossCompanySuffix}@enterprisex.local`;
+
+      const cleanupCrossCompany = async (): Promise<void> => {
+        if (crossSessionId) {
+          await db.query(
+            `
+              DELETE FROM security.sessions
+              WHERE id = $1
+            `,
+            [crossSessionId],
+          );
+        }
+
+        if (crossUserId) {
+          await db.query(
+            `
+              DELETE FROM core.audit_events
+              WHERE actor_user_id = $1
+            `,
+            [crossUserId],
+          );
+
+          await db.query(
+            `
+              DELETE FROM security.user_roles
+              WHERE user_id = $1
+            `,
+            [crossUserId],
+          );
+
+          await db.query(
+            `
+              DELETE FROM security.user_company_access
+              WHERE user_id = $1
+            `,
+            [crossUserId],
+          );
+
+          await db.query(
+            `
+              DELETE FROM security.user_credentials
+              WHERE user_id = $1
+            `,
+            [crossUserId],
+          );
+
+          await db.query(
+            `
+              DELETE FROM security.users
+              WHERE id = $1
+            `,
+            [crossUserId],
+          );
+        }
+
+        if (crossRoleId) {
+          await db.query(
+            `
+              DELETE FROM security.role_permissions
+              WHERE role_id = $1
+            `,
+            [crossRoleId],
+          );
+
+          await db.query(
+            `
+              DELETE FROM security.roles
+              WHERE id = $1
+            `,
+            [crossRoleId],
+          );
+        }
+
+        if (crossPermissionId) {
+          await db.query(
+            `
+              DELETE FROM security.permissions
+              WHERE id = $1
+            `,
+            [crossPermissionId],
+          );
+        }
+
+        if (companyAId || companyBId) {
+          const companyIds = [
+            companyAId,
+            companyBId,
+          ].filter(
+            (id): id is string => id !== null,
+          );
+
+          if (companyIds.length > 0) {
+            await db.query(
+              `
+                DELETE FROM core.companies
+                WHERE id = ANY($1::uuid[])
+              `,
+              [companyIds],
+            );
+          }
+        }
+
+        if (crossOrganizationId) {
+          await db.query(
+            `
+              DELETE FROM core.organizations
+              WHERE id = $1
+            `,
+            [crossOrganizationId],
+          );
+        }
+      };
+
+      try {
+        const organizationResult =
+          await db.query<{ id: string }>(
+            `
+              INSERT INTO core.organizations (
+                code,
+                name,
+                status
+              )
+              VALUES (
+                $1,
+                $2,
+                'ACTIVE'
+              )
+              RETURNING id
+            `,
+            [
+              `XCO-ORG-${crossCompanySuffix}`,
+              "Cross Company Test Organization",
+            ],
+          );
+
+        crossOrganizationId =
+          organizationResult.rows[0].id;
+
+        const companyAResult =
+          await db.query<{ id: string }>(
+            `
+              INSERT INTO core.companies (
+                organization_id,
+                code,
+                name,
+                status
+              )
+              VALUES (
+                $1,
+                $2,
+                $3,
+                'ACTIVE'
+              )
+              RETURNING id
+            `,
+            [
+              crossOrganizationId,
+              `XCO-A-${crossCompanySuffix}`,
+              "Cross Company Test Company A",
+            ],
+          );
+
+        companyAId =
+          companyAResult.rows[0].id;
+
+        const companyBResult =
+          await db.query<{ id: string }>(
+            `
+              INSERT INTO core.companies (
+                organization_id,
+                code,
+                name,
+                status
+              )
+              VALUES (
+                $1,
+                $2,
+                $3,
+                'ACTIVE'
+              )
+              RETURNING id
+            `,
+            [
+              crossOrganizationId,
+              `XCO-B-${crossCompanySuffix}`,
+              "Cross Company Test Company B",
+            ],
+          );
+
+        companyBId =
+          companyBResult.rows[0].id;
+
+        const userResult =
+          await db.query<{ id: string }>(
+            `
+              INSERT INTO security.users (
+                email,
+                display_name,
+                status
+              )
+              VALUES (
+                $1,
+                $2,
+                'ACTIVE'
+              )
+              RETURNING id
+            `,
+            [
+              crossEmail,
+              "Cross Company Test User",
+            ],
+          );
+
+        crossUserId =
+          userResult.rows[0].id;
+
+        /*
+         * The user is authorized to access Company B only.
+         */
+        await db.query(
+          `
+            INSERT INTO security.user_company_access (
+              user_id,
+              organization_id,
+              company_id,
+              status
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              'ACTIVE'
+            )
+          `,
+          [
+            crossUserId,
+            crossOrganizationId,
+            companyBId,
+          ],
+        );
+
+        const permissionResult =
+          await db.query<{ id: string }>(
+            `
+              INSERT INTO security.permissions (
+                code,
+                name
+              )
+              VALUES (
+                $1,
+                $2
+              )
+              RETURNING id
+            `,
+            [
+              `cross.company.secret.${crossCompanySuffix}`,
+              "Cross Company Secret Permission",
+            ],
+          );
+
+        crossPermissionId =
+          permissionResult.rows[0].id;
+
+        const roleResult =
+          await db.query<{ id: string }>(
+            `
+              INSERT INTO security.roles (
+                code,
+                name,
+                status
+              )
+              VALUES (
+                $1,
+                $2,
+                'ACTIVE'
+              )
+              RETURNING id
+            `,
+            [
+              `XCO_ROLE_${crossCompanySuffix}`,
+              "Company A Only Role",
+            ],
+          );
+
+        crossRoleId =
+          roleResult.rows[0].id;
+
+        await db.query(
+          `
+            INSERT INTO security.role_permissions (
+              role_id,
+              permission_id
+            )
+            VALUES (
+              $1,
+              $2
+            )
+          `,
+          [
+            crossRoleId,
+            crossPermissionId,
+          ],
+        );
+
+        /*
+         * The role is assigned to Company A, which the user
+         * does not have access to.
+         */
+        await db.query(
+          `
+            INSERT INTO security.user_roles (
+              user_id,
+              role_id,
+              company_id,
+              status
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              'ACTIVE'
+            )
+          `,
+          [
+            crossUserId,
+            crossRoleId,
+            companyAId,
+          ],
+        );
+
+        const token =
+          `cross-company-test-token-${crossCompanySuffix}`;
+
+        const session =
+          await createSession({
+            userId: crossUserId,
+            tokenHash:
+              hashSessionToken(token),
+            expiresAt:
+              new Date(
+                Date.now() +
+                  60 * 60 * 1000,
+              ),
+          });
+
+        crossSessionId =
+          session.id;
+
+        const app =
+          createTestApp();
+
+        try {
+          const response =
+            await app.inject({
+              method: "GET",
+              url: "/api/v1/core/context",
+              headers: {
+                authorization:
+                  `Bearer ${token}`,
+              },
+            });
+
+          /*
+           * The route requires core.organization.read.
+           * The user has no role in Company B, so the
+           * Company A role must not leak into Company B context.
+           */
+          assert.equal(
+            response.statusCode,
+            403,
+          );
+
+          assert.deepEqual(
+            response.json(),
+            {
+              error: {
+                code: "FORBIDDEN",
+                message: "Forbidden.",
+              },
+            },
+          );
+        } finally {
+          await app.close();
+        }
+      } finally {
+        await cleanupCrossCompany();
+      }
+    },
+  );
+
   await db.end();
 });

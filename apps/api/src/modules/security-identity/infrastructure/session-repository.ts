@@ -166,3 +166,41 @@ export const revokeSession =
       [sessionId, revokedAt],
     );
   };
+
+export const updateSessionCompanyContext =
+  async (
+    sessionId: string,
+    companyId: string,
+  ): Promise<Session | null> => {
+    const result =
+      await db.query<SessionRow>(
+        `
+          UPDATE security.sessions
+          SET
+            company_id = $2,
+            last_seen_at = NOW()
+          WHERE id = $1
+            AND status = 'ACTIVE'
+            AND expires_at > NOW()
+          RETURNING
+            id,
+            user_id,
+            company_id,
+            token_hash,
+            status,
+            created_at,
+            expires_at,
+            last_seen_at,
+            revoked_at
+        `,
+        [sessionId, companyId],
+      );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return mapSession(
+      result.rows[0],
+    );
+  };

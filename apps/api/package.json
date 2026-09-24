@@ -9,7 +9,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "node --test dist/**/*.test.js",
-    "db:migrate": "node dist/infrastructure/database/migrate.js"
+    "db:migrate": "node dist/infrastructure/database/migrate.js",
+    "dev:setup": "node dist/infrastructure/development/bootstrap-credentials.js"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

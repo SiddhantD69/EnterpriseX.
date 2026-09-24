@@ -1,196 +1,188 @@
-import assert from "node:assert/strict";
 import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  hasPermission,
+  hasAnyPermission,
+  hasAllPermissions,
+} from "./authorization.js";
 
 import type {
   AuthenticatedContext,
 } from "./authenticated-context.js";
 
-import {
-  hasAllPermissions,
-  hasAnyPermission,
-  hasPermission,
-} from "./authorization.js";
+const createContext = (
+  permissionCodes: string[],
+): AuthenticatedContext => {
+  return {
+    sessionId:
+      "00000000-0000-0000-0000-000000000004",
 
-const context: AuthenticatedContext = {
-  sessionId: "session-1",
-
-  user: {
-    userId: "user-1",
-    email: "user@enterprisex.local",
-    displayName: "EnterpriseX User",
-  },
-
-  organization: {
-    id: "organization-1",
-    code: "ENTX",
-    name: "EnterpriseX Organization",
-  },
-
-  company: {
-    id: "company-1",
-    code: "ENTX-CO",
-    name: "EnterpriseX Company",
-  },
-
-  roles: [
-    {
-      id: "role-1",
-      code: "ERP_ADMIN",
-      name: "ERP Administrator",
+    user: {
+      userId:
+        "00000000-0000-0000-0000-000000000001",
+      email:
+        "developer@enterprisex.local",
+      displayName:
+        "EnterpriseX Developer",
     },
-  ],
 
-  permissions: [
-    {
-      code: "finance.invoice.read",
-      name: "Read Finance Invoices",
+    organization: {
+      id:
+        "00000000-0000-0000-0000-000000000002",
+      code: "ENTERPRISEX",
+      name: "EnterpriseX",
     },
-    {
-      code: "finance.invoice.create",
-      name: "Create Finance Invoices",
+
+    company: {
+      id:
+        "00000000-0000-0000-0000-000000000003",
+      code: "ENTERPRISEX-TEST",
+      name: "EnterpriseX Test Company",
     },
-    {
-      code: "finance.invoice.approve",
-      name: "Approve Finance Invoices",
-    },
-  ],
+
+    roles: [],
+
+    permissions: permissionCodes.map(
+      (code) => ({
+        id: code,
+        code,
+        name: code,
+      }),
+    ),
+  };
 };
 
-test("Authorization", async (t) => {
-  await t.test(
-    "allows an existing permission",
-    () => {
-      assert.equal(
-        hasPermission(
-          context,
-          "finance.invoice.read",
-        ),
-        true,
-      );
-    },
-  );
+test(
+  "hasPermission returns true for an assigned permission",
+  () => {
+    const context = createContext([
+      "core.audit.read",
+    ]);
 
-  await t.test(
-    "denies a missing permission",
-    () => {
-      assert.equal(
-        hasPermission(
-          context,
-          "finance.invoice.delete",
-        ),
-        false,
-      );
-    },
-  );
+    assert.equal(
+      hasPermission(
+        context,
+        "core.audit.read",
+      ),
+      true,
+    );
+  },
+);
 
-  await t.test(
-    "denies an empty permission code",
-    () => {
-      assert.equal(
-        hasPermission(
-          context,
-          "",
-        ),
-        false,
-      );
+test(
+  "hasPermission returns false for an unassigned permission",
+  () => {
+    const context = createContext([
+      "core.audit.read",
+    ]);
 
-      assert.equal(
-        hasPermission(
-          context,
-          "   ",
-        ),
-        false,
-      );
-    },
-  );
+    assert.equal(
+      hasPermission(
+        context,
+        "core.audit.write",
+      ),
+      false,
+    );
+  },
+);
 
-  await t.test(
-    "allows when any requested permission exists",
-    () => {
-      assert.equal(
-        hasAnyPermission(
-          context,
-          [
-            "finance.invoice.delete",
-            "finance.invoice.read",
-          ],
-        ),
-        true,
-      );
-    },
-  );
+test(
+  "hasPermission returns false for an empty permission code",
+  () => {
+    const context = createContext([
+      "core.audit.read",
+    ]);
 
-  await t.test(
-    "denies when none of the requested permissions exist",
-    () => {
-      assert.equal(
-        hasAnyPermission(
-          context,
-          [
-            "finance.invoice.delete",
-            "finance.invoice.export",
-          ],
-        ),
-        false,
-      );
-    },
-  );
+    assert.equal(
+      hasPermission(context, ""),
+      false,
+    );
 
-  await t.test(
-    "allows when all requested permissions exist",
-    () => {
-      assert.equal(
-        hasAllPermissions(
-          context,
-          [
-            "finance.invoice.read",
-            "finance.invoice.create",
-          ],
-        ),
-        true,
-      );
-    },
-  );
+    assert.equal(
+      hasPermission(context, "   "),
+      false,
+    );
+  },
+);
 
-  await t.test(
-    "denies when one required permission is missing",
-    () => {
-      assert.equal(
-        hasAllPermissions(
-          context,
-          [
-            "finance.invoice.read",
-            "finance.invoice.delete",
-          ],
-        ),
-        false,
-      );
-    },
-  );
+test(
+  "hasAnyPermission returns true when at least one permission exists",
+  () => {
+    const context = createContext([
+      "core.audit.read",
+    ]);
 
-  await t.test(
-    "allows an empty all-permissions requirement",
-    () => {
-      assert.equal(
-        hasAllPermissions(
-          context,
-          [],
-        ),
-        true,
-      );
-    },
-  );
+    assert.equal(
+      hasAnyPermission(context, [
+        "core.audit.write",
+        "core.audit.read",
+      ]),
+      true,
+    );
+  },
+);
 
-  await t.test(
-    "denies an empty any-permissions requirement",
-    () => {
-      assert.equal(
-        hasAnyPermission(
-          context,
-          [],
-        ),
-        false,
-      );
-    },
-  );
-});
+test(
+  "hasAnyPermission returns false when no permission exists",
+  () => {
+    const context = createContext([
+      "core.audit.read",
+    ]);
+
+    assert.equal(
+      hasAnyPermission(context, [
+        "core.configuration.read",
+        "core.configuration.write",
+      ]),
+      false,
+    );
+  },
+);
+
+test(
+  "hasAllPermissions returns true when all permissions exist",
+  () => {
+    const context = createContext([
+      "core.audit.read",
+      "core.audit.write",
+    ]);
+
+    assert.equal(
+      hasAllPermissions(context, [
+        "core.audit.read",
+        "core.audit.write",
+      ]),
+      true,
+    );
+  },
+);
+
+test(
+  "hasAllPermissions returns false when one permission is missing",
+  () => {
+    const context = createContext([
+      "core.audit.read",
+    ]);
+
+    assert.equal(
+      hasAllPermissions(context, [
+        "core.audit.read",
+        "core.audit.write",
+      ]),
+      false,
+    );
+  },
+);
+
+test(
+  "hasAllPermissions returns true for an empty permission list",
+  () => {
+    const context = createContext([]);
+
+    assert.equal(
+      hasAllPermissions(context, []),
+      true,
+    );
+  },
+);

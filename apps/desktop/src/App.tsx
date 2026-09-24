@@ -1,34 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import "./App.css";
-
-type Permission = {
-  code: string;
-  name: string;
-};
-
-type PlatformContext = {
-  user: {
-    userId: string;
-    email: string;
-    displayName: string;
-  };
-  organization: {
-    id: string;
-    code: string;
-    name: string;
-  };
-  company: {
-    id: string;
-    code: string;
-    name: string;
-  };
-  permissions: Permission[];
-};
-
-type ApiResponse = {
-  status: "ok";
-  data: PlatformContext;
-};
+import { useAuth } from "./auth/AuthProvider";
+import { LoginScreen } from "./screens/LoginScreen";
+import { CompanySelectionScreen } from "./screens/CompanySelectionScreen";
 
 type ModuleDefinition = {
   id: string;
@@ -112,52 +86,25 @@ const modules: ModuleDefinition[] = [
   },
 ];
 
-const App = () => {
-  const [context, setContext] = useState<PlatformContext | null>(null);
+function App() {
+  const {
+    state,
+    authenticate,
+    chooseCompany,
+    logout,
+  } = useAuth();
+
   const [activeModule, setActiveModule] = useState("dashboard");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadContext = async (): Promise<void> => {
-      try {
-        setLoading(true);
-        setError(null);
+  const permissionSet = useMemo(() => {
+    if (state.status !== "AUTHENTICATED") {
+      return new Set<string>();
+    }
 
-        const response = await fetch("/api/v1/core/context");
-
-        if (!response.ok) {
-          throw new Error(
-            `Context API returned HTTP ${response.status}.`,
-          );
-        }
-
-        const result = (await response.json()) as ApiResponse;
-
-        if (result.status !== "ok") {
-          throw new Error("Context API returned an invalid response.");
-        }
-
-        setContext(result.data);
-      } catch (requestError) {
-        const message =
-          requestError instanceof Error
-            ? requestError.message
-            : "Unable to load EnterpriseX platform context.";
-
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadContext();
-  }, []);
-
-  const permissionSet = useMemo(
-    () => new Set(context?.permissions.map((permission) => permission.code)),
-    [context],
-  );
+    return new Set(
+      state.context.permissions.map((permission) => permission.code),
+    );
+  }, [state]);
 
   const availableModules = modules.filter((module) =>
     permissionSet.has(module.permission),
@@ -167,35 +114,66 @@ const App = () => {
     (module) => module.id === activeModule,
   );
 
-  if (loading) {
+  if (state.status === "LOGGED_OUT") {
+    return (
+      <LoginScreen
+        onLogin={authenticate}
+        errorMessage={null}
+        isLoading={false}
+      />
+    );
+  }
+
+  if (state.status === "AUTHENTICATING") {
     return (
       <div className="app-loading">
         <div className="loading-card">
           <div className="brand-mark">EX</div>
           <h1>EnterpriseX</h1>
-          <p>Loading platform context...</p>
+          <p>Signing in...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !context) {
+  if (state.status === "ERROR") {
+    return (
+      <LoginScreen
+        onLogin={authenticate}
+        errorMessage={state.message}
+        isLoading={false}
+      />
+    );
+  }
+
+  if (state.status === "COMPANY_SELECTION_REQUIRED") {
+    return (
+      <CompanySelectionScreen
+        companies={state.companies}
+        onSelectCompany={chooseCompany}
+        isLoading={false}
+        errorMessage={null}
+      />
+    );
+  }
+
+  if (state.status === "LOADING_CONTEXT") {
     return (
       <div className="app-loading">
-        <div className="loading-card error-card">
+        <div className="loading-card">
           <div className="brand-mark">EX</div>
           <h1>EnterpriseX</h1>
-          <p>Unable to load the EnterpriseX platform context.</p>
-          <div className="error-message">
-            {error ?? "Platform context is unavailable."}
-          </div>
-          <p className="error-help">
-            Make sure the EnterpriseX API is running on port 3000.
-          </p>
+          <p>Loading workspace...</p>
         </div>
       </div>
     );
   }
+
+  if (state.status !== "AUTHENTICATED") {
+    return null;
+  }
+
+  const { context } = state;
 
   return (
     <div className="app-shell">
@@ -211,9 +189,11 @@ const App = () => {
 
         <div className="context-card">
           <div className="context-label">COMPANY</div>
+
           <div className="context-company">
             {context.company.name}
           </div>
+
           <div className="context-code">
             {context.company.code}
           </div>
@@ -226,7 +206,7 @@ const App = () => {
             }`}
             onClick={() => setActiveModule("dashboard")}
           >
-            <span className="nav-icon">⌂</span>
+            <span className="nav-icon">D</span>
             <span>Dashboard</span>
           </button>
 
@@ -240,7 +220,7 @@ const App = () => {
               }`}
               onClick={() => setActiveModule(module.id)}
             >
-              <span className="nav-icon">◆</span>
+              <span className="nav-icon">M</span>
               <span>{module.name}</span>
             </button>
           ))}
@@ -261,11 +241,20 @@ const App = () => {
               <div className="user-name">
                 {context.user.displayName}
               </div>
+
               <div className="user-email">
                 {context.user.email}
               </div>
             </div>
           </div>
+
+          <button
+            type="button"
+            className="logout-button"
+            onClick={logout}
+          >
+            Sign out
+          </button>
         </div>
       </aside>
 
@@ -273,6 +262,7 @@ const App = () => {
         <header className="topbar">
           <div>
             <div className="breadcrumb">EnterpriseX</div>
+
             <div className="page-title">
               {activeModule === "dashboard"
                 ? "Dashboard"
@@ -285,6 +275,7 @@ const App = () => {
               <span className="context-small-label">
                 ORGANIZATION
               </span>
+
               <span>{context.organization.code}</span>
             </div>
 
@@ -300,8 +291,14 @@ const App = () => {
             <>
               <div className="welcome-section">
                 <div>
-                  <div className="eyebrow">ENTERPRISE RESOURCE PLANNING</div>
-                  <h1>Welcome, {context.user.displayName}</h1>
+                  <div className="eyebrow">
+                    ENTERPRISE RESOURCE PLANNING
+                  </div>
+
+                  <h1>
+                    Welcome, {context.user.displayName}
+                  </h1>
+
                   <p>
                     Your EnterpriseX workspace is connected to the
                     development platform context.
@@ -312,9 +309,11 @@ const App = () => {
               <div className="dashboard-grid">
                 <div className="dashboard-card">
                   <div className="card-label">COMPANY</div>
+
                   <div className="card-value">
                     {context.company.code}
                   </div>
+
                   <div className="card-description">
                     {context.company.name}
                   </div>
@@ -322,9 +321,11 @@ const App = () => {
 
                 <div className="dashboard-card">
                   <div className="card-label">ORGANIZATION</div>
+
                   <div className="card-value">
                     {context.organization.code}
                   </div>
+
                   <div className="card-description">
                     {context.organization.name}
                   </div>
@@ -332,9 +333,11 @@ const App = () => {
 
                 <div className="dashboard-card">
                   <div className="card-label">PERMISSIONS</div>
+
                   <div className="card-value">
                     {context.permissions.length}
                   </div>
+
                   <div className="card-description">
                     Active platform permissions
                   </div>
@@ -344,7 +347,10 @@ const App = () => {
               <div className="module-section">
                 <div className="section-heading">
                   <div>
-                    <div className="eyebrow">AVAILABLE MODULES</div>
+                    <div className="eyebrow">
+                      AVAILABLE MODULES
+                    </div>
+
                     <h2>EnterpriseX Workspace</h2>
                   </div>
                 </div>
@@ -356,10 +362,12 @@ const App = () => {
                       className="module-card"
                       onClick={() => setActiveModule(module.id)}
                     >
-                      <div className="module-card-icon">◆</div>
+                      <div className="module-card-icon">M</div>
+
                       <div className="module-card-name">
                         {module.name}
                       </div>
+
                       <div className="module-card-description">
                         {module.description}
                       </div>
@@ -370,7 +378,9 @@ const App = () => {
             </>
           ) : (
             <div className="module-workspace">
-              <div className="eyebrow">MODULE WORKSPACE</div>
+              <div className="eyebrow">
+                MODULE WORKSPACE
+              </div>
 
               <h1>{activeModuleDefinition?.name}</h1>
 
@@ -380,20 +390,26 @@ const App = () => {
 
               <div className="workspace-status">
                 <div className="status-dot" />
+
                 <div>
-                  <strong>Module access confirmed</strong>
+                  <strong>
+                    Module access confirmed
+                  </strong>
+
                   <span>
-                    Permission: {activeModuleDefinition?.permission}
+                    Permission:{" "}
+                    {activeModuleDefinition?.permission}
                   </span>
                 </div>
               </div>
 
               <div className="development-notice">
                 <strong>Foundation V1</strong>
+
                 <p>
                   This module workspace is currently a platform
-                  foundation placeholder. Business functionality will
-                  be implemented by its owning module agent.
+                  foundation placeholder. Business functionality
+                  will be implemented by its owning module agent.
                 </p>
               </div>
             </div>
@@ -402,6 +418,6 @@ const App = () => {
       </main>
     </div>
   );
-};
+}
 
 export default App;

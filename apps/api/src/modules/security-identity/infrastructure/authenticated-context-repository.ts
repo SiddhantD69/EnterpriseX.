@@ -65,10 +65,11 @@ export const findAuthenticatedContextBySessionId =
 
           INNER JOIN security.user_company_access uca
             ON uca.user_id = u.id
+           AND uca.company_id = s.company_id
            AND uca.status = 'ACTIVE'
 
           INNER JOIN core.companies c
-            ON c.id = uca.company_id
+            ON c.id = s.company_id
            AND c.organization_id = uca.organization_id
            AND c.status = 'ACTIVE'
 
@@ -93,6 +94,7 @@ export const findAuthenticatedContextBySessionId =
 
           WHERE s.id = $1
             AND s.status = 'ACTIVE'
+            AND s.company_id IS NOT NULL
             AND s.expires_at > NOW()
             AND u.status = 'ACTIVE'
 

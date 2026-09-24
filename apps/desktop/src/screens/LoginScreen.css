@@ -1,0 +1,555 @@
+/* ============================================================
+   EnterpriseX Login
+   Matches the existing ERP design system in App.css
+   ============================================================ */
+
+.login-page {
+  width: 100%;
+  height: 100vh;
+
+  display: grid;
+  grid-template-columns: 42% 58%;
+
+  overflow: hidden;
+
+  background: #f4f6f9;
+  color: #172033;
+
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+.login-page *,
+.login-page *::before,
+.login-page *::after {
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   Left Brand Panel
+   Uses the same color as the ERP sidebar
+   ============================================================ */
+
+.login-brand-panel {
+  position: relative;
+
+  height: 100vh;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  padding: 38px 42px;
+
+  overflow: hidden;
+
+  background: #101827;
+  color: #ffffff;
+
+  border-right: 1px solid #1d2839;
+}
+
+.login-brand-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Brand */
+
+.login-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.login-brand-mark {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+
+  background: #ffffff;
+  color: #102a56;
+
+  font-size: 17px;
+  font-weight: 800;
+
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.08);
+}
+
+.login-brand-name {
+  color: #ffffff;
+
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.25px;
+}
+
+.login-brand-name span {
+  color: #dbe8f8;
+}
+
+.login-brand-subtitle {
+  margin-top: 4px;
+
+  color: #9aa7bb;
+
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Brand Message */
+
+.login-brand-message {
+  max-width: 470px;
+
+  margin-top: 170px;
+}
+
+.login-eyebrow {
+  color: #7f8ca1;
+
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.login-brand-message h2 {
+  margin: 15px 0 16px;
+
+  color: #ffffff;
+
+  font-size: 38px;
+  line-height: 1.16;
+  font-weight: 750;
+
+  letter-spacing: -1px;
+}
+
+.login-brand-message p {
+  max-width: 430px;
+
+  margin: 0;
+
+  color: #9aa7bb;
+
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+/* Footer */
+
+.login-brand-footer {
+  position: relative;
+  z-index: 1;
+
+  color: #68758b;
+
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Subtle background decoration */
+
+.login-brand-panel::before {
+  content: "";
+
+  position: absolute;
+
+  width: 460px;
+  height: 460px;
+
+  right: -280px;
+  bottom: -210px;
+
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  border-radius: 50%;
+}
+
+.login-brand-panel::after {
+  content: "";
+
+  position: absolute;
+
+  width: 280px;
+  height: 280px;
+
+  right: -160px;
+  bottom: -100px;
+
+  border: 1px solid rgba(255, 255, 255, 0.035);
+  border-radius: 50%;
+}
+
+/* ============================================================
+   Right Login Area
+   ============================================================ */
+
+.login-form-panel {
+  height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 40px;
+
+  background: #f4f6f9;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+
+  padding: 36px 38px;
+
+  border: 1px solid #e1e6ed;
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 8px 24px rgba(24, 38, 58, 0.045),
+    0 2px 7px rgba(24, 38, 58, 0.025);
+}
+
+/* ============================================================
+   Header
+   ============================================================ */
+
+.login-header {
+  margin-bottom: 28px;
+}
+
+.login-eyebrow-light {
+  margin-bottom: 9px;
+
+  color: #64748b;
+}
+
+.login-header h1 {
+  margin: 0;
+
+  color: #15243b;
+
+  font-size: 29px;
+  line-height: 1.2;
+  font-weight: 750;
+
+  letter-spacing: -0.7px;
+}
+
+.login-header p {
+  margin: 8px 0 0;
+
+  color: #6d7889;
+
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   Error
+   ============================================================ */
+
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+
+  margin-bottom: 20px;
+  padding: 12px 13px;
+
+  border: 1px solid #f0d2d2;
+  border-radius: 9px;
+
+  background: #fff7f7;
+  color: #b42318;
+
+  font-size: 12px;
+}
+
+.login-error-icon {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #b42318;
+  color: #ffffff;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.login-error div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.login-error strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.login-error span:last-child {
+  color: #8f3b34;
+  line-height: 1.45;
+}
+
+/* ============================================================
+   Form
+   ============================================================ */
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 19px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.login-field label {
+  color: #303b50;
+
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.login-field input {
+  width: 100%;
+  height: 45px;
+
+  padding: 0 13px;
+
+  border: 1px solid #d7dce6;
+  border-radius: 8px;
+
+  outline: none;
+
+  background: #ffffff;
+  color: #172033;
+
+  font-family: inherit;
+  font-size: 13px;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.login-field input::placeholder {
+  color: #a1a9b8;
+}
+
+.login-field input:hover {
+  border-color: #bcc5d5;
+}
+
+.login-field input:focus {
+  border-color: #315a8a;
+
+  box-shadow:
+    0 0 0 3px rgba(49, 90, 138, 0.10);
+}
+
+.login-field input:disabled {
+  background: #f4f6f9;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   Button
+   Uses the same primary color as active ERP navigation
+   ============================================================ */
+
+.login-button {
+  width: 100%;
+  height: 44px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  margin-top: 3px;
+
+  border: 0;
+  border-radius: 8px;
+
+  background: #1d4f91;
+  color: #ffffff;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.login-button:hover:not(:disabled) {
+  background: #17437d;
+
+  box-shadow: 0 5px 14px rgba(29, 79, 145, 0.18);
+
+  transform: translateY(-1px);
+}
+
+.login-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.login-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.login-arrow {
+  font-size: 15px;
+}
+
+/* ============================================================
+   Loading
+   ============================================================ */
+
+.login-spinner {
+  width: 14px;
+  height: 14px;
+
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+
+  border-radius: 50%;
+
+  animation: login-spin 0.7s linear infinite;
+}
+
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================
+   Security / Version
+   ============================================================ */
+
+.login-security {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  margin-top: 22px;
+
+  color: #7a8595;
+
+  font-size: 11px;
+}
+
+.login-status-dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #24a148;
+
+  box-shadow: 0 0 0 3px rgba(36, 161, 72, 0.1);
+}
+
+.login-version {
+  margin-top: 17px;
+
+  color: #a2a9b6;
+
+  font-size: 10px;
+  text-align: center;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 850px) {
+  .login-page {
+    display: block;
+
+    overflow-y: auto;
+  }
+
+  .login-brand-panel {
+    height: auto;
+    min-height: 250px;
+
+    padding: 28px;
+  }
+
+  .login-brand-message {
+    margin-top: 55px;
+  }
+
+  .login-brand-message h2 {
+    font-size: 30px;
+  }
+
+  .login-form-panel {
+    height: auto;
+    min-height: calc(100vh - 250px);
+
+    padding: 32px 22px;
+  }
+
+  .login-card {
+    max-width: 480px;
+  }
+}
+
+@media (max-width: 500px) {
+  .login-brand-panel {
+    min-height: 220px;
+  }
+
+  .login-brand-message {
+    margin-top: 40px;
+  }
+
+  .login-brand-message p {
+    display: none;
+  }
+
+  .login-form-panel {
+    padding: 22px 16px;
+  }
+
+  .login-card {
+    padding: 28px 24px;
+  }
+}

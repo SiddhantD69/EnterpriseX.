@@ -27,15 +27,21 @@ const isLoginRequestBody = (
     body as LoginRequestBody;
 
   return (
-    typeof candidate.email === "string" &&
-    typeof candidate.password === "string"
+    typeof candidate.email ===
+      "string" &&
+    typeof candidate.password ===
+      "string"
   );
 };
 
 const invalidCredentialsResponse = (
   reply: {
-    code: (statusCode: number) => {
-      send: (payload: unknown) => unknown;
+    code: (
+      statusCode: number,
+    ) => {
+      send: (
+        payload: unknown,
+      ) => unknown;
     };
   },
 ) => {
@@ -43,7 +49,8 @@ const invalidCredentialsResponse = (
     .code(401)
     .send({
       error: {
-        code: "INVALID_CREDENTIALS",
+        code:
+          "INVALID_CREDENTIALS",
         message:
           INVALID_CREDENTIALS_MESSAGE,
       },
@@ -55,7 +62,10 @@ export const registerAuthRoutes = (
 ): void => {
   app.post(
     "/api/v1/auth/login",
-    async (request, reply) => {
+    async (
+      request,
+      reply,
+    ) => {
       if (
         !isLoginRequestBody(
           request.body,
@@ -69,26 +79,50 @@ export const registerAuthRoutes = (
       try {
         const result =
           await authenticateUser({
-            email: request.body.email,
-            password: request.body.password,
+            email:
+              request.body.email,
+            password:
+              request.body.password,
           });
 
-        return reply.code(200).send({
-          user: {
-            id: result.user.id,
-            email: result.user.email,
-            displayName:
-              result.user.displayName,
-          },
-          session: {
-            token: result.session.token,
-            expiresAt:
-              result.session.session.expiresAt,
-          },
-        });
+        const companyContext =
+          result.companyContext;
+
+        return reply
+          .code(200)
+          .send({
+            user: {
+              id:
+                result.user.id,
+              email:
+                result.user.email,
+              displayName:
+                result.user
+                  .displayName,
+            },
+
+            session: {
+              token:
+                result.session.token,
+              expiresAt:
+                result.session
+                  .session
+                  .expiresAt,
+            },
+
+            companyContext: {
+              status:
+                companyContext.status,
+              organizationId:
+                companyContext.organizationId,
+              companyId:
+                companyContext.companyId,
+            },
+          });
       } catch (error) {
         if (
-          error instanceof Error &&
+          error instanceof
+            Error &&
           error.message ===
             INVALID_CREDENTIALS_MESSAGE
         ) {
@@ -108,7 +142,8 @@ export const registerAuthRoutes = (
           .code(500)
           .send({
             error: {
-              code: "AUTHENTICATION_ERROR",
+              code:
+                "AUTHENTICATION_ERROR",
               message:
                 "Authentication service unavailable.",
             },

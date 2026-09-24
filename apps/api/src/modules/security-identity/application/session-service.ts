@@ -18,6 +18,7 @@ import {
 
 export type CreateSessionServiceInput = {
   userId: string;
+  companyId?: string | null;
   lifetimeMinutes: number;
 };
 
@@ -26,84 +27,134 @@ export type CreatedSession = {
   token: string;
 };
 
-export const createAuthenticatedSession = async (
-  input: CreateSessionServiceInput,
-): Promise<CreatedSession> => {
-  if (!Number.isInteger(input.lifetimeMinutes)) {
-    throw new Error("Session lifetime must be an integer.");
-  }
-
-  if (input.lifetimeMinutes <= 0) {
-    throw new Error("Session lifetime must be greater than zero.");
-  }
-
-  const token = generateSessionToken();
-  const tokenHash = hashSessionToken(token);
-
-  const expiresAt = new Date(
-    Date.now() + input.lifetimeMinutes * 60 * 1000,
-  );
-
-  const session = await createSession({
-    userId: input.userId,
-    tokenHash,
-    expiresAt,
-  });
-
-  return {
-    session,
-    token,
-  };
-};
-
-export const validateSession = async (
-  token: string,
-  now: Date = new Date(),
-): Promise<Session | null> => {
-  if (!token) {
-    return null;
-  }
-
-  const tokenHash = hashSessionToken(token);
-
-  const session = await findSessionByTokenHash(tokenHash);
-
-  if (!session) {
-    return null;
-  }
-
-  if (!isSessionActive(session, now)) {
+export const createAuthenticatedSession =
+  async (
+    input: CreateSessionServiceInput,
+  ): Promise<CreatedSession> => {
     if (
-      session.status === "ACTIVE" &&
-      session.expiresAt.getTime() <= now.getTime()
+      !Number.isInteger(
+        input.lifetimeMinutes,
+      )
     ) {
-      await markSessionExpired(session.id);
+      throw new Error(
+        "Session lifetime must be an integer.",
+      );
     }
 
-    return null;
-  }
+    if (
+      input.lifetimeMinutes <= 0
+    ) {
+      throw new Error(
+        "Session lifetime must be greater than zero.",
+      );
+    }
 
-  await touchSession(session.id, now);
+    const token =
+      generateSessionToken();
 
-  return session;
-};
+    const tokenHash =
+      hashSessionToken(token);
 
-export const revokeAuthenticatedSession = async (
-  token: string,
-): Promise<boolean> => {
-  if (!token) {
-    return false;
-  }
+    const expiresAt =
+      new Date(
+        Date.now() +
+          input.lifetimeMinutes *
+            60 *
+            1000,
+      );
 
-  const tokenHash = hashSessionToken(token);
+    const session =
+      await createSession({
+        userId:
+          input.userId,
+        companyId:
+          input.companyId ?? null,
+        tokenHash,
+        expiresAt,
+      });
 
-  const session = await findSessionByTokenHash(tokenHash);
+    return {
+      session,
+      token,
+    };
+  };
 
-  if (!session || session.status !== "ACTIVE") {
-    return false;
-  }
+export const validateSession =
+  async (
+    token: string,
+    now: Date = new Date(),
+  ): Promise<Session | null> => {
+    if (!token) {
+      return null;
+    }
 
-  await revokeSession(session.id);
+    const tokenHash =
+      hashSessionToken(token);
 
-  return true;
-};
+    const session =
+      await findSessionByTokenHash(
+        tokenHash,
+      );
+
+    if (!session) {
+      return null;
+    }
+
+    if (
+      !isSessionActive(
+        session,
+        now,
+      )
+    ) {
+      if (
+        session.status ===
+          "ACTIVE" &&
+        session.expiresAt.getTime() <=
+          now.getTime()
+      ) {
+        await markSessionExpired(
+          session.id,
+        );
+      }
+
+      return null;
+    }
+
+    await touchSession(
+      session.id,
+      now,
+    );
+
+    return session;
+  };
+
+export const revokeAuthenticatedSession =
+  async (
+    token: string,
+  ): Promise<boolean> => {
+    if (!token) {
+      return false;
+    }
+
+    const tokenHash =
+      hashSessionToken(token);
+
+    const session =
+      await findSessionByTokenHash(
+        tokenHash,
+      );
+
+    if (
+      !session ||
+      session.status !==
+        "ACTIVE"
+    ) {
+      return false;
+    }
+
+    await revokeSession(
+      session.id,
+    );
+
+    return true;
+  };

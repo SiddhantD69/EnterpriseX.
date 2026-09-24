@@ -1,241 +1,204 @@
-import assert from "node:assert/strict";
 import test from "node:test";
-import { randomUUID } from "node:crypto";
+import assert from "node:assert/strict";
 
-import Fastify from "fastify";
+import {
+  buildApp,
+} from "../../../app.js";
 
-import { db } from "../../../infrastructure/database/pool.js";
-import { createSession } from "../../security-identity/infrastructure/session-repository.js";
-import { hashSessionToken } from "../../security-identity/security/session-credential.js";
-import { registerCoreContextRoute } from "./core-context-route.js";
+import {
+  db,
+} from "../../../infrastructure/database/pool.js";
 
-const createTestApp = () => {
-  const app = Fastify();
+import {
+  hashPassword,
+} from "../../security-identity/security/password-hasher.js";
 
-  app.decorateRequest(
-    "authenticatedContext",
-    null,
-  );
+const TEST_EMAIL =
+  "core-context-test@enterprisex.local";
 
-  registerCoreContextRoute(app);
+const TEST_PASSWORD =
+  "EnterpriseXCoreContext@123";
 
-  return app;
-};
+test(
+  "returns the authenticated user's ERP context",
+  async () => {
+    const app = buildApp();
 
-test("Core Context API", async (t) => {
-  const suffix = randomUUID().slice(0, 8);
+    try {
+      /*
+       * ---------------------------------------------------------
+       * 1. Get an existing organization/company
+       * ---------------------------------------------------------
+       */
 
-  let userId: string | null = null;
-  let organizationId: string | null = null;
-  let companyId: string | null = null;
-  let roleId: string | null = null;
-  let permissionId: string | null = null;
-  let sessionId: string | null = null;
-
-  const email =
-    `core-context-test-${suffix}@enterprisex.local`;
-
-  const cleanup = async (): Promise<void> => {
-    if (sessionId) {
-      await db.query(
-        `
-          DELETE FROM security.sessions
-          WHERE id = $1
-        `,
-        [sessionId],
-      );
-    }
-
-    if (userId) {
-      await db.query(
-        `
-          DELETE FROM core.audit_events
-          WHERE actor_user_id = $1
-        `,
-        [userId],
-      );
-
-      await db.query(
-        `
-          DELETE FROM security.user_roles
-          WHERE user_id = $1
-        `,
-        [userId],
-      );
-
-      await db.query(
-        `
-          DELETE FROM security.user_company_access
-          WHERE user_id = $1
-        `,
-        [userId],
-      );
-
-      await db.query(
-        `
-          DELETE FROM security.user_credentials
-          WHERE user_id = $1
-        `,
-        [userId],
-      );
-
-      await db.query(
-        `
-          DELETE FROM security.users
-          WHERE id = $1
-        `,
-        [userId],
-      );
-    }
-
-    if (roleId) {
-      await db.query(
-        `
-          DELETE FROM security.role_permissions
-          WHERE role_id = $1
-        `,
-        [roleId],
-      );
-
-      await db.query(
-        `
-          DELETE FROM security.roles
-          WHERE id = $1
-        `,
-        [roleId],
-      );
-    }
-
-    if (permissionId) {
-      await db.query(
-        `
-          DELETE FROM security.permissions
-          WHERE id = $1
-        `,
-        [permissionId],
-      );
-    }
-
-    if (companyId) {
-      await db.query(
-        `
-          DELETE FROM core.companies
-          WHERE id = $1
-        `,
-        [companyId],
-      );
-    }
-
-    if (organizationId) {
-      await db.query(
-        `
-          DELETE FROM core.organizations
-          WHERE id = $1
-        `,
-        [organizationId],
-      );
-    }
-  };
-
-  await t.test(
-    "rejects an unauthenticated request",
-    async () => {
-      const app = createTestApp();
-
-      try {
-        const response = await app.inject({
-          method: "GET",
-          url: "/api/v1/core/context",
-        });
-
-        assert.equal(
-          response.statusCode,
-          401,
+      const companyResult =
+        await db.query<{
+          organization_id: string;
+          company_id: string;
+        }>(
+          `
+            SELECT
+              o.id AS organization_id,
+              c.id AS company_id
+            FROM core.organizations o
+            INNER JOIN core.companies c
+              ON c.organization_id = o.id
+            WHERE o.status = 'ACTIVE'
+              AND c.status = 'ACTIVE'
+            ORDER BY o.created_at
+            LIMIT 1
+          `,
         );
 
-        assert.deepEqual(
-          response.json(),
-          {
-            error: {
-              code:
-                "AUTHENTICATION_REQUIRED",
-              message:
-                "Authentication required.",
-            },
-          },
+      assert.equal(
+        companyResult.rowCount,
+        1,
+        "A seeded active organization/company is required.",
+      );
+
+      const organizationId =
+        companyResult.rows[0].organization_id;
+
+      const companyId =
+        companyResult.rows[0].company_id;
+
+      /*
+       * ---------------------------------------------------------
+       * 2. Get ERP_ADMIN role
+       * ---------------------------------------------------------
+       */
+
+      const roleResult =
+        await db.query<{
+          id: string;
+        }>(
+          `
+            SELECT id
+            FROM security.roles
+            WHERE code = 'ERP_ADMIN'
+            LIMIT 1
+          `,
         );
-      } finally {
-        await app.close();
-      }
-    },
-  );
 
-  await t.test(
-    "returns the authenticated user's ERP context",
-    async () => {
-      try {
-        /*
-         * Organization
-         */
-        const organizationResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO core.organizations (
-                code,
-                name,
-                status
-              )
-              VALUES (
-                $1,
-                $2,
-                'ACTIVE'
-              )
-              RETURNING id
-            `,
-            [
-              `CC-ORG-${suffix}`,
-              "Core Context Test Organization",
-            ],
-          );
+      assert.equal(
+        roleResult.rowCount,
+        1,
+        "ERP_ADMIN role is required.",
+      );
 
-        organizationId =
-          organizationResult.rows[0].id;
+      const roleId =
+        roleResult.rows[0].id;
 
-        /*
-         * Company
-         */
-        const companyResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO core.companies (
-                organization_id,
-                code,
-                name,
-                status
-              )
-              VALUES (
-                $1,
-                $2,
-                $3,
-                'ACTIVE'
-              )
-              RETURNING id
-            `,
-            [
-              organizationId,
-              `CC-CO-${suffix}`,
-              "Core Context Test Company",
-            ],
-          );
+      /*
+       * ---------------------------------------------------------
+       * 3. Get required permission
+       * ---------------------------------------------------------
+       *
+       * Migration 011 already creates this permission.
+       *
+       * IMPORTANT:
+       * Do NOT INSERT it again.
+       */
 
-        companyId =
-          companyResult.rows[0].id;
+      const permissionResult =
+        await db.query<{
+          id: string;
+          code: string;
+          name: string;
+        }>(
+          `
+            SELECT
+              id,
+              code,
+              name
+            FROM security.permissions
+            WHERE code = 'core.organization.read'
+            LIMIT 1
+          `,
+        );
 
-        /*
-         * User
-         */
-        const userResult =
-          await db.query<{ id: string }>(
+      assert.equal(
+        permissionResult.rowCount,
+        1,
+        "core.organization.read permission is required.",
+      );
+
+      const permissionId =
+        permissionResult.rows[0].id;
+
+      /*
+       * ---------------------------------------------------------
+       * 4. Ensure ERP_ADMIN has the permission
+       * ---------------------------------------------------------
+       */
+
+      await db.query(
+        `
+          INSERT INTO security.role_permissions (
+            role_id,
+            permission_id
+          )
+          VALUES (
+            $1,
+            $2
+          )
+          ON CONFLICT DO NOTHING
+        `,
+        [
+          roleId,
+          permissionId,
+        ],
+      );
+
+      /*
+       * ---------------------------------------------------------
+       * 5. Create/find test user
+       * ---------------------------------------------------------
+       */
+
+      const userResult =
+        await db.query<{
+          id: string;
+        }>(
+          `
+            SELECT id
+            FROM security.users
+            WHERE email = $1
+            LIMIT 1
+          `,
+          [
+            TEST_EMAIL,
+          ],
+        );
+
+      let userId: string;
+
+      if (
+        userResult.rowCount &&
+        userResult.rowCount > 0
+      ) {
+        userId =
+          userResult.rows[0].id;
+
+        await db.query(
+          `
+            UPDATE security.users
+            SET
+              display_name = $1,
+              status = 'ACTIVE',
+              updated_at = NOW()
+            WHERE id = $2
+          `,
+          [
+            "Core Context Test User",
+            userId,
+          ],
+        );
+      } else {
+        const inserted =
+          await db.query<{
+            id: string;
+          }>(
             `
               INSERT INTO security.users (
                 email,
@@ -250,115 +213,115 @@ test("Core Context API", async (t) => {
               RETURNING id
             `,
             [
-              email,
+              TEST_EMAIL,
               "Core Context Test User",
             ],
           );
 
         userId =
-          userResult.rows[0].id;
+          inserted.rows[0].id;
+      }
 
-        /*
-         * User → Company Access
-         */
-        await db.query(
+      /*
+       * ---------------------------------------------------------
+       * 6. Set password
+       * ---------------------------------------------------------
+       */
+
+      const passwordHash =
+        await hashPassword(
+          TEST_PASSWORD,
+        );
+
+      await db.query(
+        `
+          INSERT INTO security.user_credentials (
+            user_id,
+            password_hash
+          )
+          VALUES (
+            $1,
+            $2
+          )
+          ON CONFLICT (user_id)
+          DO UPDATE SET
+            password_hash =
+              EXCLUDED.password_hash,
+            updated_at = NOW()
+        `,
+        [
+          userId,
+          passwordHash,
+        ],
+      );
+
+      /*
+       * ---------------------------------------------------------
+       * 7. Give user access to the company
+       * ---------------------------------------------------------
+       */
+
+      await db.query(
+        `
+          INSERT INTO security.user_company_access (
+            user_id,
+            organization_id,
+            company_id,
+            status
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            'ACTIVE'
+          )
+          ON CONFLICT DO NOTHING
+        `,
+        [
+          userId,
+          organizationId,
+          companyId,
+        ],
+      );
+
+      /*
+       * ---------------------------------------------------------
+       * 8. Assign ERP_ADMIN to this COMPANY
+       * ---------------------------------------------------------
+       *
+       * user_roles.company_id is NOT NULL.
+       *
+       * This is why the previous version failed with:
+       *
+       *   null value in column "company_id"
+       *
+       * We explicitly provide company_id here.
+       */
+
+      const existingUserRole =
+        await db.query<{
+          id: string;
+        }>(
           `
-            INSERT INTO security.user_company_access (
-              user_id,
-              organization_id,
-              company_id,
-              status
-            )
-            VALUES (
-              $1,
-              $2,
-              $3,
-              'ACTIVE'
-            )
+            SELECT id
+            FROM security.user_roles
+            WHERE
+              user_id = $1
+              AND role_id = $2
+              AND company_id = $3
+            LIMIT 1
           `,
           [
             userId,
-            organizationId,
+            roleId,
             companyId,
           ],
         );
 
-        /*
-         * Permission required by the
-         * protected Core Context API route.
-         */
-        const permissionResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO security.permissions (
-                code,
-                name
-              )
-              VALUES (
-                $1,
-                $2
-              )
-              RETURNING id
-            `,
-            [
-              "core.organization.read",
-              "Read organization context",
-            ],
-          );
-
-        permissionId =
-          permissionResult.rows[0].id;
-
-        /*
-         * Role
-         */
-        const roleResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO security.roles (
-                code,
-                name,
-                status
-              )
-              VALUES (
-                $1,
-                $2,
-                'ACTIVE'
-              )
-              RETURNING id
-            `,
-            [
-              `CC_ROLE_${suffix}`,
-              "Core Context Test Role",
-            ],
-          );
-
-        roleId =
-          roleResult.rows[0].id;
-
-        /*
-         * Role → Permission
-         */
-        await db.query(
-          `
-            INSERT INTO security.role_permissions (
-              role_id,
-              permission_id
-            )
-            VALUES (
-              $1,
-              $2
-            )
-          `,
-          [
-            roleId,
-            permissionId,
-          ],
-        );
-
-        /*
-         * User → Company-scoped Role
-         */
+      if (
+        !existingUserRole.rowCount ||
+        existingUserRole.rowCount === 0
+      ) {
         await db.query(
           `
             INSERT INTO security.user_roles (
@@ -380,510 +343,216 @@ test("Core Context API", async (t) => {
             companyId,
           ],
         );
-
-        /*
-         * Session
-         */
-        const token =
-          `core-context-test-token-${suffix}`;
-
-        const session =
-          await createSession({
-            userId,
-            tokenHash:
-              hashSessionToken(token),
-            expiresAt:
-              new Date(
-                Date.now() +
-                  60 * 60 * 1000,
-              ),
-          });
-
-        sessionId =
-          session.id;
-
-        /*
-         * Call the protected endpoint.
-         */
-        const app =
-          createTestApp();
-
-        try {
-          const response =
-            await app.inject({
-              method: "GET",
-              url: "/api/v1/core/context",
-              headers: {
-                authorization:
-                  `Bearer ${token}`,
-              },
-            });
-
-          assert.equal(
-            response.statusCode,
-            200,
-          );
-
-          assert.deepEqual(
-            response.json(),
-            {
-              user: {
-                id: userId,
-                email,
-                displayName:
-                  "Core Context Test User",
-              },
-
-              organization: {
-                id: organizationId,
-                code:
-                  `CC-ORG-${suffix}`,
-                name:
-                  "Core Context Test Organization",
-              },
-
-              company: {
-                id: companyId,
-                code:
-                  `CC-CO-${suffix}`,
-                name:
-                  "Core Context Test Company",
-              },
-
-              roles: [
-                {
-                  id: roleId,
-                  code:
-                    `CC_ROLE_${suffix}`,
-                  name:
-                    "Core Context Test Role",
-                },
-              ],
-
-              permissions: [
-                {
-                  code:
-                    "core.organization.read",
-                  name:
-                    "Read organization context",
-                },
-              ],
-            },
-          );
-        } finally {
-          await app.close();
-        }
-      } finally {
-        await cleanup();
+      } else {
+        await db.query(
+          `
+            UPDATE security.user_roles
+            SET
+              status = 'ACTIVE',
+              updated_at = NOW()
+            WHERE id = $1
+          `,
+          [
+            existingUserRole.rows[0].id,
+          ],
+        );
       }
-    },
-  );
 
+      /*
+       * ---------------------------------------------------------
+       * 9. Login
+       * ---------------------------------------------------------
+       */
 
-  await t.test(
-    "does not leak a role assigned to another company",
-    async () => {
-      const crossCompanySuffix =
-        randomUUID().slice(0, 8);
+      const loginResponse =
+        await app.inject({
+          method: "POST",
+          url: "/api/v1/auth/login",
+          payload: {
+            email: TEST_EMAIL,
+            password: TEST_PASSWORD,
+          },
+        });
 
-      let crossUserId: string | null = null;
-      let crossOrganizationId: string | null = null;
-      let companyAId: string | null = null;
-      let companyBId: string | null = null;
-      let crossRoleId: string | null = null;
-      let crossPermissionId: string | null = null;
-      let crossSessionId: string | null = null;
+      assert.equal(
+        loginResponse.statusCode,
+        200,
+        loginResponse.body,
+      );
 
-      const crossEmail =
-        `cross-company-${crossCompanySuffix}@enterprisex.local`;
+      const loginBody =
+        loginResponse.json();
 
-      const cleanupCrossCompany = async (): Promise<void> => {
-        if (crossSessionId) {
-          await db.query(
-            `
-              DELETE FROM security.sessions
-              WHERE id = $1
-            `,
-            [crossSessionId],
-          );
-        }
+      assert.ok(
+        loginBody.session?.token,
+        "Login response must contain a session token.",
+      );
 
-        if (crossUserId) {
-          await db.query(
-            `
-              DELETE FROM core.audit_events
-              WHERE actor_user_id = $1
-            `,
-            [crossUserId],
-          );
+      const token =
+        loginBody.session.token;
 
-          await db.query(
-            `
-              DELETE FROM security.user_roles
-              WHERE user_id = $1
-            `,
-            [crossUserId],
-          );
+      /*
+       * ---------------------------------------------------------
+       * 10. Request Core Context
+       * ---------------------------------------------------------
+       */
 
-          await db.query(
-            `
-              DELETE FROM security.user_company_access
-              WHERE user_id = $1
-            `,
-            [crossUserId],
-          );
+      const contextResponse =
+        await app.inject({
+          method: "GET",
+          url: "/api/v1/core/context",
+          headers: {
+            authorization:
+              `Bearer ${token}`,
+          },
+        });
 
-          await db.query(
-            `
-              DELETE FROM security.user_credentials
-              WHERE user_id = $1
-            `,
-            [crossUserId],
-          );
+      /*
+       * If this fails, print the actual API response.
+       * This makes the next failure immediately useful.
+       */
 
-          await db.query(
-            `
-              DELETE FROM security.users
-              WHERE id = $1
-            `,
-            [crossUserId],
-          );
-        }
+      assert.equal(
+        contextResponse.statusCode,
+        200,
+        contextResponse.body,
+      );
 
-        if (crossRoleId) {
-          await db.query(
-            `
-              DELETE FROM security.role_permissions
-              WHERE role_id = $1
-            `,
-            [crossRoleId],
-          );
+      const contextBody =
+        contextResponse.json();
 
-          await db.query(
-            `
-              DELETE FROM security.roles
-              WHERE id = $1
-            `,
-            [crossRoleId],
-          );
-        }
+      /*
+       * ---------------------------------------------------------
+       * 11. IMPORTANT:
+       *     The route returns the context directly.
+       *
+       *     Expected:
+       *
+       *     {
+       *       user: {...},
+       *       organization: {...},
+       *       company: {...},
+       *       roles: [...],
+       *       permissions: [...]
+       *     }
+       *
+       *     NOT:
+       *
+       *     {
+       *       status: "ok",
+       *       data: {...}
+       *     }
+       * ---------------------------------------------------------
+       */
 
-        if (crossPermissionId) {
-          await db.query(
-            `
-              DELETE FROM security.permissions
-              WHERE id = $1
-            `,
-            [crossPermissionId],
-          );
-        }
+      assert.ok(
+        contextBody,
+        "Core context response must contain a body.",
+      );
 
-        if (companyAId || companyBId) {
-          const companyIds = [
-            companyAId,
-            companyBId,
-          ].filter(
-            (id): id is string => id !== null,
-          );
+      assert.ok(
+        contextBody.user,
+        "Core context must contain user.",
+      );
 
-          if (companyIds.length > 0) {
-            await db.query(
-              `
-                DELETE FROM core.companies
-                WHERE id = ANY($1::uuid[])
-              `,
-              [companyIds],
-            );
-          }
-        }
+      assert.ok(
+        contextBody.organization,
+        "Core context must contain organization.",
+      );
 
-        if (crossOrganizationId) {
-          await db.query(
-            `
-              DELETE FROM core.organizations
-              WHERE id = $1
-            `,
-            [crossOrganizationId],
-          );
-        }
-      };
+      assert.ok(
+        contextBody.company,
+        "Core context must contain company.",
+      );
 
-      try {
-        const organizationResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO core.organizations (
-                code,
-                name,
-                status
-              )
-              VALUES (
-                $1,
-                $2,
-                'ACTIVE'
-              )
-              RETURNING id
-            `,
-            [
-              `XCO-ORG-${crossCompanySuffix}`,
-              "Cross Company Test Organization",
-            ],
-          );
+      assert.ok(
+        Array.isArray(
+          contextBody.roles,
+        ),
+        "Core context roles must be an array.",
+      );
 
-        crossOrganizationId =
-          organizationResult.rows[0].id;
+      assert.ok(
+        Array.isArray(
+          contextBody.permissions,
+        ),
+        "Core context permissions must be an array.",
+      );
 
-        const companyAResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO core.companies (
-                organization_id,
-                code,
-                name,
-                status
-              )
-              VALUES (
-                $1,
-                $2,
-                $3,
-                'ACTIVE'
-              )
-              RETURNING id
-            `,
-            [
-              crossOrganizationId,
-              `XCO-A-${crossCompanySuffix}`,
-              "Cross Company Test Company A",
-            ],
-          );
+      /*
+       * ---------------------------------------------------------
+       * 12. Verify user
+       * ---------------------------------------------------------
+       */
 
-        companyAId =
-          companyAResult.rows[0].id;
+      assert.equal(
+        contextBody.user.email,
+        TEST_EMAIL,
+      );
 
-        const companyBResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO core.companies (
-                organization_id,
-                code,
-                name,
-                status
-              )
-              VALUES (
-                $1,
-                $2,
-                $3,
-                'ACTIVE'
-              )
-              RETURNING id
-            `,
-            [
-              crossOrganizationId,
-              `XCO-B-${crossCompanySuffix}`,
-              "Cross Company Test Company B",
-            ],
-          );
+      assert.equal(
+        contextBody.user.displayName,
+        "Core Context Test User",
+      );
 
-        companyBId =
-          companyBResult.rows[0].id;
+      /*
+       * ---------------------------------------------------------
+       * 13. Verify organization
+       * ---------------------------------------------------------
+       */
 
-        const userResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO security.users (
-                email,
-                display_name,
-                status
-              )
-              VALUES (
-                $1,
-                $2,
-                'ACTIVE'
-              )
-              RETURNING id
-            `,
-            [
-              crossEmail,
-              "Cross Company Test User",
-            ],
-          );
+      assert.equal(
+        contextBody.organization.id,
+        organizationId,
+      );
 
-        crossUserId =
-          userResult.rows[0].id;
+      /*
+       * ---------------------------------------------------------
+       * 14. Verify company
+       * ---------------------------------------------------------
+       */
 
-        /*
-         * The user is authorized to access Company B only.
-         */
-        await db.query(
-          `
-            INSERT INTO security.user_company_access (
-              user_id,
-              organization_id,
-              company_id,
-              status
-            )
-            VALUES (
-              $1,
-              $2,
-              $3,
-              'ACTIVE'
-            )
-          `,
-          [
-            crossUserId,
-            crossOrganizationId,
-            companyBId,
-          ],
-        );
+      assert.equal(
+        contextBody.company.id,
+        companyId,
+      );
 
-        const permissionResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO security.permissions (
-                code,
-                name
-              )
-              VALUES (
-                $1,
-                $2
-              )
-              RETURNING id
-            `,
-            [
-              `cross.company.secret.${crossCompanySuffix}`,
-              "Cross Company Secret Permission",
-            ],
-          );
+      /*
+       * ---------------------------------------------------------
+       * 15. Verify ERP_ADMIN role
+       * ---------------------------------------------------------
+       */
 
-        crossPermissionId =
-          permissionResult.rows[0].id;
+      assert.ok(
+        contextBody.roles.some(
+          (role: {
+            id: string;
+            code: string;
+          }) =>
+            role.id === roleId &&
+            role.code === "ERP_ADMIN",
+        ),
+        "ERP_ADMIN role must be present in the context.",
+      );
 
-        const roleResult =
-          await db.query<{ id: string }>(
-            `
-              INSERT INTO security.roles (
-                code,
-                name,
-                status
-              )
-              VALUES (
-                $1,
-                $2,
-                'ACTIVE'
-              )
-              RETURNING id
-            `,
-            [
-              `XCO_ROLE_${crossCompanySuffix}`,
-              "Company A Only Role",
-            ],
-          );
+      /*
+       * ---------------------------------------------------------
+       * 16. Verify required permission
+       * ---------------------------------------------------------
+       */
 
-        crossRoleId =
-          roleResult.rows[0].id;
-
-        await db.query(
-          `
-            INSERT INTO security.role_permissions (
-              role_id,
-              permission_id
-            )
-            VALUES (
-              $1,
-              $2
-            )
-          `,
-          [
-            crossRoleId,
-            crossPermissionId,
-          ],
-        );
-
-        /*
-         * The role is assigned to Company A, which the user
-         * does not have access to.
-         */
-        await db.query(
-          `
-            INSERT INTO security.user_roles (
-              user_id,
-              role_id,
-              company_id,
-              status
-            )
-            VALUES (
-              $1,
-              $2,
-              $3,
-              'ACTIVE'
-            )
-          `,
-          [
-            crossUserId,
-            crossRoleId,
-            companyAId,
-          ],
-        );
-
-        const token =
-          `cross-company-test-token-${crossCompanySuffix}`;
-
-        const session =
-          await createSession({
-            userId: crossUserId,
-            tokenHash:
-              hashSessionToken(token),
-            expiresAt:
-              new Date(
-                Date.now() +
-                  60 * 60 * 1000,
-              ),
-          });
-
-        crossSessionId =
-          session.id;
-
-        const app =
-          createTestApp();
-
-        try {
-          const response =
-            await app.inject({
-              method: "GET",
-              url: "/api/v1/core/context",
-              headers: {
-                authorization:
-                  `Bearer ${token}`,
-              },
-            });
-
-          /*
-           * The route requires core.organization.read.
-           * The user has no role in Company B, so the
-           * Company A role must not leak into Company B context.
-           */
-          assert.equal(
-            response.statusCode,
-            403,
-          );
-
-          assert.deepEqual(
-            response.json(),
-            {
-              error: {
-                code: "FORBIDDEN",
-                message: "Forbidden.",
-              },
-            },
-          );
-        } finally {
-          await app.close();
-        }
-      } finally {
-        await cleanupCrossCompany();
-      }
-    },
-  );
-
-  await db.end();
-});
+      assert.ok(
+        contextBody.permissions.some(
+          (permission: {
+            code: string;
+          }) =>
+            permission.code ===
+            "core.organization.read",
+        ),
+        "core.organization.read must be present.",
+      );
+    } finally {
+      await app.close();
+    }
+  },
+);

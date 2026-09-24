@@ -121,3 +121,34 @@ export const recordSessionRevoked = async (
     sourceModule: SECURITY_SOURCE_MODULE,
   });
 };
+
+export const recordCompanyContextSelected = async (
+  input: {
+    userId: string;
+    sessionId: string;
+    organizationId: string;
+    companyId: string;
+    previousCompanyId?: string | null;
+    requestId?: string | null;
+    correlationId?: string | null;
+  },
+): Promise<void> => {
+  await createAuditEvent({
+    actorUserId: input.userId,
+    organizationId: input.organizationId,
+    companyId: input.companyId,
+    action: "COMPANY_CONTEXT_SELECTED",
+    entityType: "SESSION",
+    entityId: input.sessionId,
+    status: "SUCCESS",
+    requestId:
+      input.requestId ?? null,
+    correlationId:
+      input.correlationId ?? null,
+    sourceModule: SECURITY_SOURCE_MODULE,
+    metadata: {
+      previousCompanyId:
+        input.previousCompanyId ?? null,
+    },
+  });
+};

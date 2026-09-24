@@ -524,6 +524,7 @@ test("Authentication Middleware", async (t) => {
         const session =
           await createSession({
             userId,
+            companyId,
             tokenHash:
               hashSessionToken(token),
             expiresAt:

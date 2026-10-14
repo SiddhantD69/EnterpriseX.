@@ -1,4 +1,5 @@
 import { db } from "../../../../infrastructure/database/pool.js";
+import type { PoolClient } from "pg";
 
 import type {
   ListAuditEventsInput,
@@ -62,9 +63,10 @@ const mapAuditEvent = (
 
 export const createAuditEvent = async (
   input: CreateAuditEventInput,
+  client?: PoolClient,
 ) => {
   const result =
-    await db.query<AuditEventRow>(
+    await (client ?? db).query<AuditEventRow>(
       `
         INSERT INTO core.audit_events (
           actor_user_id,

@@ -1,0 +1,77 @@
+.inventory-page > .master-data-list {
+  margin-top: 4px;
+}
+
+.inventory-receipt-form {
+  max-width: 920px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #dce2e9;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.inventory-receipt-form h2 {
+  margin: 0 0 2px;
+  color: #18263a;
+  font-size: 16px;
+}
+
+.inventory-receipt-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #3a4b60;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.inventory-receipt-form input,
+.inventory-receipt-form select {
+  min-width: 0;
+  height: 36px;
+  padding: 0 9px;
+  border: 1px solid #cbd5df;
+  border-radius: 5px;
+  background: #fff;
+  color: #1e2d41;
+  font: inherit;
+  font-size: 12px;
+}
+
+.inventory-receipt-line {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.4fr) minmax(100px, 0.6fr) minmax(220px, 1fr);
+  align-items: end;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e4e9ef;
+}
+
+.inventory-receipt-material {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  color: #28384d;
+  font-size: 12px;
+}
+
+.inventory-receipt-material span {
+  color: #68778a;
+  font-size: 11px;
+}
+
+.inventory-last-receipt {
+  color: #286343;
+  font-size: 12px;
+}
+
+@media (max-width: 800px) {
+  .inventory-receipt-line {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

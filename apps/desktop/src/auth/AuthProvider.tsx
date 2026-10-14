@@ -9,6 +9,7 @@ import {
 import {
   AuthenticationState,
 } from "./auth-state";
+import { logout as revokeSession } from "../api/auth-api";
 
 import type {
   AuthState,
@@ -16,6 +17,7 @@ import type {
 
 type AuthContextValue = {
   state: AuthState;
+  isCompanySelectionLoading: boolean;
   authenticate: (
     email: string,
     password: string,
@@ -23,7 +25,7 @@ type AuthContextValue = {
   chooseCompany: (
     companyId: string,
   ) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext =
@@ -47,21 +49,26 @@ export const AuthProvider = ({
     useState<AuthState>(
       controller.state,
     );
+  const [isCompanySelectionLoading, setIsCompanySelectionLoading] =
+    useState(false);
 
   const value =
     useMemo<AuthContextValue>(
       () => ({
         state,
+        isCompanySelectionLoading,
 
         authenticate: async (
           email,
           password,
         ) => {
-          await controller.authenticate(
+          const authentication = controller.authenticate(
             email,
             password,
           );
 
+          setState(controller.state);
+          await authentication;
           setState(
             controller.state,
           );
@@ -70,23 +77,33 @@ export const AuthProvider = ({
         chooseCompany: async (
           companyId,
         ) => {
-          await controller.chooseCompany(
-            companyId,
-          );
-
-          setState(
-            controller.state,
-          );
+          setIsCompanySelectionLoading(true);
+          try {
+            await controller.chooseCompany(companyId);
+            setState(controller.state);
+          } finally {
+            setIsCompanySelectionLoading(false);
+          }
         },
 
-        logout: () => {
+        logout: async () => {
+          const currentState = controller.state;
+          const token = "session" in currentState
+            ? currentState.session?.token
+            : undefined;
           controller.logout();
           setState(
             controller.state,
           );
+
+          if (token) {
+            try {
+              await revokeSession(token);
+            } catch {}
+          }
         },
       }),
-      [controller, state],
+      [controller, isCompanySelectionLoading, state],
     );
 
   return (

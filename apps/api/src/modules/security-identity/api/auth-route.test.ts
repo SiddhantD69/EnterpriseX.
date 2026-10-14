@@ -885,5 +885,65 @@ describe(
         );
       },
     );
+
+    test(
+      "logout revokes the bearer session and records an audit event",
+      async () => {
+        const unauthenticated = await app.inject({
+          method: "POST",
+          url: "/api/v1/auth/logout",
+        });
+        assert.equal(unauthenticated.statusCode, 401);
+
+        await clearCompanyAccess();
+        await grantCompanyAccess(companyAId);
+
+        const loginResponse = await app.inject({
+          method: "POST",
+          url: "/api/v1/auth/login",
+          payload: {
+            email: TEST_EMAIL,
+            password: TEST_PASSWORD,
+          },
+        });
+        assert.equal(loginResponse.statusCode, 200);
+        const { token } = loginResponse.json().session;
+
+        const logoutResponse = await app.inject({
+          method: "POST",
+          url: "/api/v1/auth/logout",
+          headers: {
+            authorization: `Bearer ${token}`,
+          },
+        });
+        assert.equal(logoutResponse.statusCode, 200);
+
+        const sessionResult = await db.query<{
+          id: string;
+          status: string;
+        }>(
+          `
+            SELECT id, status
+            FROM security.sessions
+            WHERE token_hash = $1
+          `,
+          [hashSessionToken(token)],
+        );
+        assert.equal(sessionResult.rowCount, 1);
+        assert.equal(sessionResult.rows[0].status, "REVOKED");
+
+        const auditResult = await db.query(
+          `
+            SELECT id
+            FROM core.audit_events
+            WHERE actor_user_id = $1
+              AND entity_id = $2
+              AND action = 'SESSION_REVOKED'
+          `,
+          [testUserId, sessionResult.rows[0].id],
+        );
+        assert.equal(auditResult.rowCount, 1);
+      },
+    );
   },
 );

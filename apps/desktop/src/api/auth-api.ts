@@ -73,6 +73,20 @@ export const login = async (
   );
 };
 
+export const logout = async (
+  token: string,
+): Promise<void> => {
+  await apiRequest<{ status: "ok" }>(
+    "/api/v1/auth/logout",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+};
+
 export const getCompanies = async (
   token: string,
 ): Promise<CompaniesResponse> => {

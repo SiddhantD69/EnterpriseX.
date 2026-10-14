@@ -4,6 +4,19 @@ import {
   authenticateUser,
   INVALID_CREDENTIALS_MESSAGE,
 } from "../application/login-service.js";
+import { revokeAuthenticatedSession } from "../application/session-service.js";
+
+const getBearerToken = (
+  authorization: string | undefined,
+): string | null => {
+  const prefix = "Bearer ";
+  if (!authorization?.startsWith(prefix)) {
+    return null;
+  }
+
+  const token = authorization.slice(prefix.length).trim();
+  return token || null;
+};
 
 type LoginRequestBody = {
   email?: unknown;
@@ -148,6 +161,54 @@ export const registerAuthRoutes = (
                 "Authentication service unavailable.",
             },
           });
+      }
+    },
+  );
+
+  app.post(
+    "/api/v1/auth/logout",
+    async (request, reply) => {
+      const token = getBearerToken(
+        request.headers.authorization,
+      );
+
+      if (!token) {
+        return reply.code(401).send({
+          error: {
+            code: "AUTHENTICATION_REQUIRED",
+            message: "Authentication required.",
+          },
+        });
+      }
+
+      try {
+        const revoked = await revokeAuthenticatedSession(
+          token,
+          request.log,
+        );
+
+        if (!revoked) {
+          return reply.code(401).send({
+            error: {
+              code: "AUTHENTICATION_REQUIRED",
+              message: "Authentication required.",
+            },
+          });
+        }
+
+        return reply.code(200).send({ status: "ok" });
+      } catch (error) {
+        request.log.error(
+          { err: error },
+          "Session logout failed.",
+        );
+
+        return reply.code(500).send({
+          error: {
+            code: "AUTHENTICATION_ERROR",
+            message: "Authentication service unavailable.",
+          },
+        });
       }
     },
   );

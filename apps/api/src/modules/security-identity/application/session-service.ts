@@ -1,3 +1,5 @@
+import type { FastifyBaseLogger } from "fastify";
+
 import {
   createSession,
   findSessionByTokenHash,
@@ -15,6 +17,9 @@ import {
   generateSessionToken,
   hashSessionToken,
 } from "../security/session-credential.js";
+import {
+  recordSessionRevoked,
+} from "./security-audit-service.js";
 
 export type CreateSessionServiceInput = {
   userId: string;
@@ -131,6 +136,7 @@ export const validateSession =
 export const revokeAuthenticatedSession =
   async (
     token: string,
+    logger?: Pick<FastifyBaseLogger, "error">,
   ): Promise<boolean> => {
     if (!token) {
       return false;
@@ -155,6 +161,20 @@ export const revokeAuthenticatedSession =
     await revokeSession(
       session.id,
     );
+
+    try {
+      await recordSessionRevoked({
+        userId: session.userId,
+        sessionId: session.id,
+      });
+    } catch (error) {
+      try {
+        logger?.error(
+          { err: error },
+          "Session revocation audit failed.",
+        );
+      } catch {}
+    }
 
     return true;
   };

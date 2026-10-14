@@ -6,9 +6,9 @@ services:
     container_name: enterprisex-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: enterprisex
-      POSTGRES_PASSWORD: change_me
-      POSTGRES_DB: enterprisex
+      POSTGRES_USER: ${POSTGRES_USER:-enterprisex}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-enterprisex}
     ports:
       - "5432:5432"
     volumes:

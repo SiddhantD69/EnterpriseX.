@@ -1,0 +1,37 @@
+.catalog-form {
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px 0 0;
+  border-top: 1px solid #dce2e9;
+}
+
+.catalog-form h2 {
+  margin: 0 0 2px;
+  color: #18263a;
+  font-size: 15px;
+}
+
+.catalog-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #3a4b60;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.catalog-form input,
+.catalog-form select {
+  min-width: 0;
+  height: 36px;
+  padding: 0 9px;
+  border: 1px solid #cbd5df;
+  border-radius: 5px;
+  background: #fff;
+  color: #1e2d41;
+  font: inherit;
+  font-size: 12px;
+}

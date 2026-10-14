@@ -15,10 +15,11 @@ export class ApiError extends Error {
 }
 
 type ApiErrorResponse = {
-  error?: {
+  error?: string | {
     code?: unknown;
     message?: unknown;
   };
+  message?: unknown;
 };
 
 const getErrorDetails = (
@@ -39,6 +40,16 @@ const getErrorDetails = (
 
   const candidate =
     payload as ApiErrorResponse;
+
+  if (typeof candidate.error === "string") {
+    return {
+      code: candidate.error,
+      message:
+        typeof candidate.message === "string"
+          ? candidate.message
+          : "EnterpriseX request failed.",
+    };
+  }
 
   const code =
     typeof candidate.error?.code === "string"

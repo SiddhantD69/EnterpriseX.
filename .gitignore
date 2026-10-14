@@ -6,6 +6,18 @@ coverage/
 .env.*
 !.env.example
 
+# Local secrets and certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.local
+
+# Local database and generated files
+*.sqlite
+*.sqlite3
+
 *.log
 
 .DS_Store
@@ -20,4 +32,9 @@ Thumbs.db
 target/
 
 src-tauri/target/
+
+# Ignore only top-level SQL dumps and local database exports.
+# Keep versioned migrations in database/migrations/ tracked.
 database/*.sql
+!database/migrations/
+!database/migrations/**/*.sql

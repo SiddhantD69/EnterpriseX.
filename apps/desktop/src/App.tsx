@@ -3,6 +3,12 @@ import "./App.css";
 import { useAuth } from "./auth/AuthProvider";
 import { LoginScreen } from "./screens/LoginScreen";
 import { CompanySelectionScreen } from "./screens/CompanySelectionScreen";
+import { MasterDataWorkspace } from "./screens/MasterDataWorkspace";
+import { ProcurementWorkspace } from "./screens/ProcurementWorkspace";
+import { InventoryWorkspace } from "./screens/InventoryWorkspace";
+import { CatalogWorkspace } from "./screens/CatalogWorkspace";
+import { FinanceWorkspace } from "./screens/FinanceWorkspace";
+import { AssetManagementWorkspace } from "./screens/AssetManagementWorkspace";
 
 type ModuleDefinition = {
   id: string;
@@ -21,8 +27,8 @@ const modules: ModuleDefinition[] = [
   {
     id: "procurement",
     name: "Procurement",
-    description: "Purchasing, suppliers, and procurement processes.",
-    permission: "procurement.read",
+    description: "Requisitions, purchase orders, receipts, and invoice matching.",
+    permission: "procurement.requisitions.read",
   },
   {
     id: "supply-chain",
@@ -33,8 +39,8 @@ const modules: ModuleDefinition[] = [
   {
     id: "inventory",
     name: "Inventory",
-    description: "Inventory visibility and stock management.",
-    permission: "inventory.read",
+    description: "Company stock balances, movements, and goods receipts.",
+    permission: "inventory.stock.read",
   },
   {
     id: "warehouse",
@@ -82,7 +88,7 @@ const modules: ModuleDefinition[] = [
     id: "service",
     name: "Service Management",
     description: "Enterprise service management and service operations.",
-    permission: "service.read",
+    permission: "services.read",
   },
 ];
 
@@ -92,6 +98,7 @@ function App() {
     authenticate,
     chooseCompany,
     logout,
+    isCompanySelectionLoading,
   } = useAuth();
 
   const [activeModule, setActiveModule] = useState("dashboard");
@@ -106,9 +113,53 @@ function App() {
     );
   }, [state]);
 
-  const availableModules = modules.filter((module) =>
-    permissionSet.has(module.permission),
-  );
+  const availableModules = modules.filter((module) => {
+    if (module.id === "procurement") {
+      return [
+        "procurement.requisitions.read",
+        "procurement.requisitions.create",
+        "procurement.requisitions.update",
+        "procurement.requisitions.submit",
+        "procurement.purchase_orders.read",
+        "procurement.purchase_orders.create",
+        "procurement.supplier_invoices.read",
+        "procurement.supplier_invoices.create",
+        "core.suppliers.read",
+        "core.suppliers.create",
+        "core.materials.read",
+        "core.materials.create",
+        "core.currencies.read",
+        "core.currencies.create",
+        "core.units_of_measure.read",
+        "core.units_of_measure.create",
+      ].some((permission) => permissionSet.has(permission));
+    }
+    if (module.id === "inventory") {
+      return permissionSet.has("inventory.stock.read") ||
+        permissionSet.has("inventory.goods_receipts.create");
+    }
+    return permissionSet.has(module.permission);
+  });
+  const canAccessMasterData = [
+    "core.plants.read",
+    "core.plants.create",
+    "core.warehouses.read",
+    "core.warehouses.create",
+    "core.warehouses.update",
+    "core.storage_locations.read",
+    "core.storage_locations.create",
+    "core.storage_locations.update",
+  ].some((permission) => permissionSet.has(permission));
+  const canAccessCatalog = [
+    "core.suppliers.read",
+    "core.suppliers.create",
+    "core.materials.read",
+    "core.materials.create",
+    "core.currencies.read",
+    "core.currencies.create",
+    "core.units_of_measure.read",
+    "core.units_of_measure.create",
+  ].some((permission) => permissionSet.has(permission));
 
   const activeModuleDefinition = modules.find(
     (module) => module.id === activeModule,
@@ -151,7 +202,7 @@ function App() {
       <CompanySelectionScreen
         companies={state.companies}
         onSelectCompany={chooseCompany}
-        isLoading={false}
+        isLoading={isCompanySelectionLoading}
         errorMessage={null}
       />
     );
@@ -173,7 +224,7 @@ function App() {
     return null;
   }
 
-  const { context } = state;
+  const { context, session } = state;
 
   return (
     <div className="app-shell">
@@ -210,7 +261,33 @@ function App() {
             <span>Dashboard</span>
           </button>
 
-          <div className="nav-section-label">MODULES</div>
+          {canAccessMasterData && (
+            <button
+              className={`nav-item ${
+                activeModule === "core-master-data" ? "active" : ""
+              }`}
+              onClick={() => setActiveModule("core-master-data")}
+            >
+              <span className="nav-icon">C</span>
+              <span>Core Platform</span>
+            </button>
+          )}
+
+          {canAccessCatalog && (
+            <button
+              className={`nav-item ${
+                activeModule === "catalog-setup" ? "active" : ""
+              }`}
+              onClick={() => setActiveModule("catalog-setup")}
+            >
+              <span className="nav-icon">R</span>
+              <span>Purchasing Catalog</span>
+            </button>
+          )}
+
+          {availableModules.length > 0 && (
+            <div className="nav-section-label">MODULES</div>
+          )}
 
           {availableModules.map((module) => (
             <button
@@ -266,7 +343,11 @@ function App() {
             <div className="page-title">
               {activeModule === "dashboard"
                 ? "Dashboard"
-                : activeModuleDefinition?.name}
+                : activeModule === "core-master-data"
+                  ? "Core Platform"
+                  : activeModule === "catalog-setup"
+                    ? "Purchasing Catalog"
+                  : activeModuleDefinition?.name}
             </div>
           </div>
 
@@ -287,7 +368,37 @@ function App() {
         </header>
 
         <section className="workspace">
-          {activeModule === "dashboard" ? (
+          {activeModule === "core-master-data" ? (
+            <MasterDataWorkspace
+              token={session.token}
+              permissionCodes={permissionSet}
+            />
+          ) : activeModule === "catalog-setup" ? (
+            <CatalogWorkspace
+              token={session.token}
+              permissionCodes={permissionSet}
+            />
+          ) : activeModule === "procurement" ? (
+            <ProcurementWorkspace
+              token={session.token}
+              permissionCodes={permissionSet}
+            />
+          ) : activeModule === "inventory" ? (
+            <InventoryWorkspace
+              token={session.token}
+              permissionCodes={permissionSet}
+            />
+          ) : activeModule === "finance" ? (
+            <FinanceWorkspace
+              token={session.token}
+              permissionCodes={permissionSet}
+            />
+          ) : activeModule === "assets" || activeModule === "projects" || activeModule === "service" ? (
+            <AssetManagementWorkspace
+              token={session.token}
+              permissionCodes={permissionSet}
+            />
+          ) : activeModule === "dashboard" ? (
             <>
               <div className="welcome-section">
                 <div>
